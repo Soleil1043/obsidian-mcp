@@ -9,7 +9,7 @@
 ## 任务列表
 
 <!-- 基础设施层 -->
-- [ ] T001: 项目初始化与构建骨架 | 依赖: 无 | 涉及文件: package.json, tsconfig.json, vitest.config.ts, .gitignore, src/index.ts（占位） | 验收: `npm install && npm run build` 成功，`npm test` 跑通冒烟测试 | 覆盖: 无（基础设施）
+- [x] T001: 项目初始化与构建骨架 | 依赖: 无 | 涉及文件: package.json, tsconfig.json, vitest.config.ts, .gitignore, src/index.ts（占位） | 验收: `npm install && npm run build` 成功，`npm test` 跑通冒烟测试 | 覆盖: 无（基础设施）
 - [ ] T002: Vault 核心与路径安全 | 依赖: T001 | 涉及文件: src/errors.ts, src/vault.ts, tests/vault.test.ts | 验收: `npm test` 全绿——根路径取自 OBSIDIAN_VAULT_PATH；POSIX 相对路径归一化；`..`/绝对路径逃逸拒绝（E05）；非 `.md` 目标拒绝（E06） | 覆盖: E05, E06
 
 <!-- 核心工具层（读） -->

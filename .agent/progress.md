@@ -24,7 +24,25 @@
 **Git**：`abc1234` feat: T0XX 任务名称
 -->
 
-（暂无记录，等待 Phase 4 开始）
+### [T001] 项目初始化与构建骨架 — 2026-09-30
+
+**操作**：
+- 创建 package.json、tsconfig.json、vitest.config.ts、.gitignore、src/index.ts 占位入口、tests/smoke.test.ts 冒烟测试
+- 安装运行时依赖 @modelcontextprotocol/sdk、zod，开发依赖 typescript、@types/node、vitest
+
+**涉及文件**：
+- `package.json` — 项目元信息、ESM、bin 指向 dist/index.js、build/test 脚本；npm 解析写入实际依赖版本
+- `tsconfig.json` — strict + NodeNext 模块，产物输出 dist/
+- `vitest.config.ts` — 测试文件限定 tests/**/*.test.ts
+- `src/index.ts` — 占位入口（server 装配在 T010）
+- `tests/smoke.test.ts` — 测试链路冒烟用例
+
+**验证方式**：
+- `npm run build` 成功；`npm test` 1 passed；`node dist/index.js` 输出占位信息
+
+**状态**：✅ 通过验证（待用户确认）
+
+**Git**：见下方 T001 commit
 
 ---
 
