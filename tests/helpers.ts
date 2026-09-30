@@ -51,6 +51,40 @@ export function makeSearchVault(): Vault {
   return new Vault(root);
 }
 
+/** 被移动笔记的内容：含自身锚点、wikilink 与两条相对 Markdown 链接。 */
+export const MOVED_NOTE_CONTENT =
+  "self [[#head]]\n[[a]] stays\n[rel](other.md)\n[up](../a.md)\n";
+
+/** 链接维护 fixture：a.md 集中各类引用形态，journal/note.md 为被移动笔记，dup 双胞胎制造歧义。 */
+export function makeLinksVault(): Vault {
+  const root = trackTempRoot(mkdtempSync(path.join(tmpdir(), "obsidian-mcp-links-")));
+  writeFileSync(
+    path.join(root, "a.md"),
+    "see [[note]] and [[note|alias]] plus [[note#head]] embed ![[note]]\n" +
+      "path [[journal/note]] and [[journal/note.md]]\n" +
+      "other [[other]] missing [[missing]] dup [[dup]]\n" +
+      "```\ncode [[journal/note]]\n```\n" +
+      "[t](journal/note.md)\n",
+  );
+  mkdirSync(path.join(root, "journal"));
+  writeFileSync(path.join(root, "journal", "note.md"), MOVED_NOTE_CONTENT);
+  writeFileSync(path.join(root, "journal", "other.md"), "x\n");
+  writeFileSync(path.join(root, "journal", "dup.md"), "d1\n");
+  writeFileSync(path.join(root, "dup.md"), "d2\n");
+  return new Vault(root);
+}
+
+/** 歧义 fixture：journal/note.md 与 folder2/note.md 同名，[[note]] 无法唯一解析。 */
+export function makeLinksVaultAmbiguous(): Vault {
+  const root = trackTempRoot(mkdtempSync(path.join(tmpdir(), "obsidian-mcp-linksamb-")));
+  writeFileSync(path.join(root, "a.md"), "see [[note]]\n");
+  mkdirSync(path.join(root, "journal"));
+  writeFileSync(path.join(root, "journal", "note.md"), "moved\n");
+  mkdirSync(path.join(root, "folder2"));
+  writeFileSync(path.join(root, "folder2", "note.md"), "x\n");
+  return new Vault(root);
+}
+
 export async function expectVaultError(
   fn: () => unknown | Promise<unknown>,
   code: VaultErrorCode,

@@ -3,6 +3,7 @@ import path from "node:path";
 
 import { z } from "zod";
 
+import { listVaultNotes, updateLinksAfterMove } from "../links.js";
 import { VaultError } from "../errors.js";
 import { assertEtagMatches, computeEtag } from "../etag.js";
 import type { Vault } from "../vault.js";
@@ -25,6 +26,10 @@ export interface MovedNote {
   to: string;
   /** 移动后内容的 SHA-256（内容不变，便于链式后续操作） */
   etag: string;
+  /** 因移动而更新了链接的文件（F12） */
+  updated: string[];
+  /** 无法唯一解析、保持原样的链接（E11） */
+  ambiguous: Array<{ path: string; link: string }>;
 }
 
 /** F06：重命名/移动笔记。E08 目标已存在时报 ALREADY_EXISTS，源文件保持原位。 */
@@ -70,15 +75,24 @@ export async function moveNote(
     );
   }
 
+  // 移动前扫描全量笔记：链接解析以移动前的路径状态为准（F12）
+  const notes = await listVaultNotes(vault);
   await mkdir(path.dirname(toAbs), { recursive: true });
   await rename(fromAbs, toAbs);
-  return { from: fromRel, to: toRel, etag: computeEtag(current) };
+  const linkUpdate = await updateLinksAfterMove(vault, notes, fromRel, toRel);
+  return {
+    from: fromRel,
+    to: toRel,
+    etag: computeEtag(current),
+    updated: linkUpdate.updated,
+    ambiguous: linkUpdate.ambiguous,
+  };
 }
 
 export const moveNoteTool = {
   name: "move_note",
   description:
-    "移动或重命名 Obsidian vault 中的笔记（也可用于整理目录结构：配合 list_notes 浏览后移动）。目标已存在时报错且不覆盖；目标父目录不存在时自动创建。",
+    "移动或重命名 Obsidian vault 中的笔记，并自动更新 vault 内指向该笔记的 [[wikilink]] 与 Markdown 相对链接（无法唯一解析的歧义链接保持原样并在结果中报告）；被移动笔记自身的相对链接也会重新指向正确位置。目标已存在时报错且不覆盖；目标父目录不存在时自动创建。",
   schema: moveNoteSchema,
   handler: moveNote,
 } as const;

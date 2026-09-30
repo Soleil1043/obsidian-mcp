@@ -291,6 +291,25 @@
 
 **Git**：见下方 T014 commit
 
+### [T015] move_note 更新反向链接（v1.2） — 2026-09-30
+
+**操作**：
+- 新增链接解析模块 src/links.ts，move_note 移动后自动维护双向链接
+
+**涉及文件**：
+- `src/links.ts` — listVaultNotes（全量 .md 扫描，后续标签/搜索任务复用）；wikilink 解析（路径式/裸文件名唯一解析/歧义/自身锚点，保留 #heading、#^block 与 |alias）；Markdown 相对链接解析（%20 与 <> 解码、目录相对解析、越根拒绝）；fenced code block 内链接不动；rename 时裸链接改写为新名（新名已被占用则退化为全路径）；被移动笔记自身的相对链接按旧目录解析、重写为从新目录出发
+- `src/tools/organize.ts` — moveNote 在 rename 前扫描、rename 后改写；返回值新增 updated（被改写文件列表，已排序）与 ambiguous（E11 报告）
+- `tests/links.test.ts` — 3 场景：纯移动/重命名/歧义（fixture 见 helpers）
+- `tests/helpers.ts` — makeLinksVault / makeLinksVaultAmbiguous / MOVED_NOTE_CONTENT
+
+**验证方式**：
+- `npm run build` 成功；`npm test` 77 passed（smoke 1 + vault 15 + server 5 + tools 53 + links 3）
+- 首跑抓出 1 个真 bug：重建链接时丢失 `#heading`/`#^block` 锚点——已修复（锚点拆出解析、原样拼回）并补断言
+
+**状态**：✅ 通过验证（待用户确认）
+
+**Git**：见下方 T015 commit
+
 ---
 
 ## 问题追踪

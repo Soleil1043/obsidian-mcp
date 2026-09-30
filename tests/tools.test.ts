@@ -376,7 +376,13 @@ describe("move_note（F06）", () => {
   it("同目录重命名：旧路径不存在，新路径内容一致", async () => {
     const vault = makeFixtureVault();
     const result = await moveNote(vault, { from: "note.md", to: "renamed.md" });
-    expect(result).toEqual({ from: "note.md", to: "renamed.md", etag: computeEtag("# hello\n") });
+    expect(result).toEqual({
+      from: "note.md",
+      to: "renamed.md",
+      etag: computeEtag("# hello\n"),
+      updated: [],
+      ambiguous: [],
+    });
     expect(existsSync(path.join(vault.root, "note.md"))).toBe(false);
     expect(readFileSync(path.join(vault.root, "renamed.md"), "utf8")).toBe("# hello\n");
   });
