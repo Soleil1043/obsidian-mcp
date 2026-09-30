@@ -3,6 +3,7 @@ import { readFile, stat } from "node:fs/promises";
 import { z } from "zod";
 
 import { VaultError } from "../errors.js";
+import { computeEtag } from "../etag.js";
 import type { Vault } from "../vault.js";
 
 export const readNoteSchema = z.object({
@@ -19,6 +20,8 @@ export interface NoteContent {
   size_bytes: number;
   /** ISO 8601 修改时间 */
   modified_at: string;
+  /** 内容 SHA-256，配合写工具的 if_match 做乐观锁（F11） */
+  etag: string;
 }
 
 /** F02：读取笔记全文。E02 不存在时报 NOT_FOUND，不创建文件；E06 非 .md 拒绝。 */
@@ -48,6 +51,7 @@ export async function readNote(
     content,
     size_bytes: statResult.size,
     modified_at: statResult.mtime.toISOString(),
+    etag: computeEtag(content),
   };
 }
 

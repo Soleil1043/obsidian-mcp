@@ -16,6 +16,7 @@ import {
   makeFixtureVault,
   makeSearchVault,
 } from "./helpers";
+import { computeEtag } from "../src/etag";
 
 afterEach(() => {
   cleanupTempVaults();
@@ -207,6 +208,7 @@ describe("create_note（F04）", () => {
     expect(result).toEqual({
       path: "notes/2026/deep/new.md",
       size_bytes: Buffer.byteLength("# Title\nbody\n", "utf8"),
+      etag: computeEtag("# Title\nbody\n"),
     });
     expect(readFileSync(path.join(vault.root, "notes", "2026", "deep", "new.md"), "utf8")).toBe(
       "# Title\nbody\n",
@@ -374,7 +376,7 @@ describe("move_note（F06）", () => {
   it("同目录重命名：旧路径不存在，新路径内容一致", async () => {
     const vault = makeFixtureVault();
     const result = await moveNote(vault, { from: "note.md", to: "renamed.md" });
-    expect(result).toEqual({ from: "note.md", to: "renamed.md" });
+    expect(result).toEqual({ from: "note.md", to: "renamed.md", etag: computeEtag("# hello\n") });
     expect(existsSync(path.join(vault.root, "note.md"))).toBe(false);
     expect(readFileSync(path.join(vault.root, "renamed.md"), "utf8")).toBe("# hello\n");
   });
@@ -487,5 +489,117 @@ describe("delete_note（F06/E07）", () => {
       "PATH_ESCAPES_VAULT",
     );
     await expectVaultError(() => deleteNote(vault, { path: "image.png" }), "NOT_MARKDOWN");
+  });
+});
+
+describe("etag 并发控制（F11/E10）", () => {
+  it("read_note 返回 64 位 hex etag，内容变化后 etag 随之变化", async () => {
+    const vault = makeFixtureVault();
+    const first = await readNote(vault, { path: "note.md" });
+    expect(first.etag).toMatch(/^[0-9a-f]{64}$/);
+    expect(first.etag).toBe(computeEtag("# hello\n"));
+    await editNote(vault, { path: "note.md", mode: "append", content: "x" });
+    const second = await readNote(vault, { path: "note.md" });
+    expect(second.etag).not.toBe(first.etag);
+  });
+
+  it("edit_note 传入正确 if_match 成功，返回新内容 etag", async () => {
+    const vault = makeFixtureVault();
+    const read = await readNote(vault, { path: "note.md" });
+    const result = await editNote(vault, {
+      path: "note.md",
+      mode: "append",
+      content: "more\n",
+      if_match: read.etag,
+    });
+    expect(result.etag).toBe(computeEtag("# hello\nmore\n"));
+    expect(readFileSync(path.join(vault.root, "note.md"), "utf8")).toBe("# hello\nmore\n");
+  });
+
+  it("E10: edit_note 传入过期 if_match 时报 ETAG_MISMATCH 且文件不变", async () => {
+    const vault = makeFixtureVault();
+    await expectVaultError(
+      () =>
+        editNote(vault, {
+          path: "note.md",
+          mode: "overwrite",
+          content: "clobber",
+          if_match: computeEtag("stale content"),
+        }),
+      "ETAG_MISMATCH",
+    );
+    expect(readFileSync(path.join(vault.root, "note.md"), "utf8")).toBe("# hello\n");
+  });
+
+  it("E10: create(overwrite) 过期 if_match 拒绝覆盖，正确 if_match 成功", async () => {
+    const vault = makeFixtureVault();
+    await expectVaultError(
+      () =>
+        createNote(vault, {
+          path: "note.md",
+          content: "clobber",
+          overwrite: true,
+          if_match: computeEtag("stale"),
+        }),
+      "ETAG_MISMATCH",
+    );
+    expect(readFileSync(path.join(vault.root, "note.md"), "utf8")).toBe("# hello\n");
+
+    const read = await readNote(vault, { path: "note.md" });
+    await createNote(vault, {
+      path: "note.md",
+      content: "replaced",
+      overwrite: true,
+      if_match: read.etag,
+    });
+    expect(readFileSync(path.join(vault.root, "note.md"), "utf8")).toBe("replaced");
+  });
+
+  it("E10: create(overwrite) 目标已消失时报 ETAG_MISMATCH", async () => {
+    const vault = makeFixtureVault();
+    await expectVaultError(
+      () =>
+        createNote(vault, {
+          path: "ghost.md",
+          content: "x",
+          overwrite: true,
+          if_match: computeEtag("whatever"),
+        }),
+      "ETAG_MISMATCH",
+    );
+    expect(existsSync(path.join(vault.root, "ghost.md"))).toBe(false);
+  });
+
+  it("E10: move_note 过期 if_match 拒绝移动且源不动，正确 if_match 成功", async () => {
+    const vault = makeFixtureVault();
+    await expectVaultError(
+      () =>
+        moveNote(vault, { from: "note.md", to: "moved.md", if_match: computeEtag("stale") }),
+      "ETAG_MISMATCH",
+    );
+    expect(existsSync(path.join(vault.root, "note.md"))).toBe(true);
+
+    const read = await readNote(vault, { path: "note.md" });
+    const result = await moveNote(vault, {
+      from: "note.md",
+      to: "moved.md",
+      if_match: read.etag,
+    });
+    expect(result.etag).toBe(read.etag);
+    expect(existsSync(path.join(vault.root, "note.md"))).toBe(false);
+    expect(existsSync(path.join(vault.root, "moved.md"))).toBe(true);
+  });
+
+  it("E10: delete_note 过期 if_match 拒绝删除，正确 if_match 删除成功", async () => {
+    const vault = makeFixtureVault();
+    await expectVaultError(
+      () => deleteNote(vault, { path: "note.md", if_match: computeEtag("stale") }),
+      "ETAG_MISMATCH",
+    );
+    expect(existsSync(path.join(vault.root, "note.md"))).toBe(true);
+
+    const read = await readNote(vault, { path: "note.md" });
+    await deleteNote(vault, { path: "note.md", if_match: read.etag });
+    expect(existsSync(path.join(vault.root, "note.md"))).toBe(false);
   });
 });

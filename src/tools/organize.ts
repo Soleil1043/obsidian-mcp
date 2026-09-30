@@ -1,9 +1,10 @@
-import { access, mkdir, rename, rm, stat } from "node:fs/promises";
+import { access, mkdir, readFile, rename, rm, stat } from "node:fs/promises";
 import path from "node:path";
 
 import { z } from "zod";
 
 import { VaultError } from "../errors.js";
+import { assertEtagMatches, computeEtag } from "../etag.js";
 import type { Vault } from "../vault.js";
 
 export const moveNoteSchema = z.object({
@@ -13,11 +14,17 @@ export const moveNoteSchema = z.object({
   to: z
     .string()
     .describe("目标路径（vault 内 POSIX 风格相对路径，需以 .md 结尾）；同目录即重命名，跨目录即移动；目标父目录不存在时自动创建"),
+  if_match: z
+    .string()
+    .optional()
+    .describe("乐观锁：传入上次 read_note 返回的 etag，与源笔记当前内容不符时拒绝移动"),
 });
 
 export interface MovedNote {
   from: string;
   to: string;
+  /** 移动后内容的 SHA-256（内容不变，便于链式后续操作） */
+  etag: string;
 }
 
 /** F06：重命名/移动笔记。E08 目标已存在时报 ALREADY_EXISTS，源文件保持原位。 */
@@ -47,6 +54,9 @@ export async function moveNote(
     throw new VaultError("NOT_A_FILE", `源不是文件: ${fromRel}`);
   }
 
+  const current = await readFile(fromAbs, "utf8");
+  assertEtagMatches(current, input.if_match, fromRel);
+
   let toStat = null;
   try {
     toStat = await stat(toAbs);
@@ -62,7 +72,7 @@ export async function moveNote(
 
   await mkdir(path.dirname(toAbs), { recursive: true });
   await rename(fromAbs, toAbs);
-  return { from: fromRel, to: toRel };
+  return { from: fromRel, to: toRel, etag: computeEtag(current) };
 }
 
 export const moveNoteTool = {
@@ -81,6 +91,10 @@ export const deleteNoteSchema = z.object({
     .boolean()
     .optional()
     .describe("true=永久删除（不可恢复）；默认 false=移入 vault 根 .trash/（Obsidian 可在其界面恢复）"),
+  if_match: z
+    .string()
+    .optional()
+    .describe("乐观锁：传入上次 read_note 返回的 etag，与当前内容不符时拒绝删除"),
 });
 
 export interface DeletedNote {
@@ -110,6 +124,11 @@ export async function deleteNote(
   }
   if (!statResult.isFile()) {
     throw new VaultError("NOT_A_FILE", `目标不是文件: ${rel}`);
+  }
+
+  if (input.if_match !== undefined) {
+    const current = await readFile(abs, "utf8");
+    assertEtagMatches(current, input.if_match, rel);
   }
 
   if (permanent) {

@@ -270,6 +270,27 @@
 
 **Git**：`cc294bb` feat: T012 / T013 提交见仓库
 
+### [T014] etag 并发控制（v1.2） — 2026-09-30
+
+**操作**：
+- 新增 etag 模块，4 个写工具接入 if_match 乐观锁（D005 方案），全部校验发生在写盘之前
+
+**涉及文件**：
+- `src/etag.ts` — computeEtag（SHA-256/64 hex）+ assertEtagMatches（不符抛 ETAG_MISMATCH，报错含期望/实际 etag 前缀）
+- `src/errors.ts` — 错误码新增 ETAG_MISMATCH（E10）
+- `src/tools/read.ts` — NoteContent 增加 etag 字段
+- `src/tools/create.ts` — if_match：overwrite 时校验当前内容；目标已消失时报 ETAG_MISMATCH；结果增加新内容 etag
+- `src/tools/edit.ts` — 读入 current 后即校验 if_match；结果增加编辑后 etag（支持链式编辑）
+- `src/tools/organize.ts` — move：读源内容校验 if_match，返回 etag；delete：校验后删除
+- `tests/tools.test.ts` — 新增 7 用例（F11/E10）；更新 create/move 两处精确断言以含 etag
+
+**验证方式**：
+- `npm run build` 成功；`npm test` 74 passed（smoke 1 + vault 15 + server 5 + tools 53）
+
+**状态**：✅ 通过验证（待用户确认）
+
+**Git**：见下方 T014 commit
+
 ---
 
 ## 问题追踪

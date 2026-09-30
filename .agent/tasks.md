@@ -30,7 +30,7 @@
 - [x] T013: GitHub 公开仓库发布 | 依赖: T012 | 涉及文件: LICENSE, package.json, README.md | 验收: 公开仓库 Soleil1043/obsidian-mcp 存在，含全部提交，CI 运行全绿 | 覆盖: 无（基础设施）
 
 <!-- v1.2 路线图（竞品对标增补，优先级见 plan.md 第 8 节） -->
-- [ ] T014: etag 并发控制 | 依赖: T013 | 涉及文件: src/tools/read.ts, create.ts, edit.ts, organize.ts, src/errors.ts, tests | 验收: `npm test`——read_note 返回 64 位 hex etag 且随内容变化；edit/create(overwrite)/move/delete 提供 if_match 不符时报 ETAG_MISMATCH 且文件不变；不传 if_match 行为与现状一致 | 覆盖: F11, E10
+- [x] T014: etag 并发控制 | 依赖: T013 | 涉及文件: src/tools/read.ts, create.ts, edit.ts, organize.ts, src/errors.ts, tests | 验收: `npm test`——read_note 返回 64 位 hex etag 且随内容变化；edit/create(overwrite)/move/delete 提供 if_match 不符时报 ETAG_MISMATCH 且文件不变；不传 if_match 行为与现状一致 | 覆盖: F11, E10
 - [ ] T015: move_note 更新反向链接 | 依赖: T014 | 涉及文件: src/links.ts（新增）, src/tools/organize.ts, tests | 验收: `npm test`——含 `[[path]]`、`[[path|alias]]`、`[[path#heading]]`、`[text](relative.md)` 的 vault 在移动后引用全部指向新路径；歧义链接不动并在返回 `ambiguous` 中报告 | 覆盖: F12, E11
 - [ ] T016: manage_frontmatter 工具 | 依赖: T014 | 涉及文件: src/tools/frontmatter.ts（新增）, package.json, tests | 验收: `npm test`——get/set/delete 字段正确落盘；无 frontmatter 时 set 自动创建；YAML 损坏报错且文件不变 | 覆盖: F07, E12
 - [ ] T017: manage_tags 工具 | 依赖: T016 | 涉及文件: src/tools/tags.ts（新增）, tests | 验收: `npm test`——list 覆盖 frontmatter tags 与行内 `#tag`；add/remove 后标签增减且正文其余不变；代码块内 # 不误伤 | 覆盖: F08

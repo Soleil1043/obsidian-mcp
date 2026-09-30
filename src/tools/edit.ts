@@ -3,6 +3,7 @@ import { readFile, stat, writeFile } from "node:fs/promises";
 import { z } from "zod";
 
 import { VaultError } from "../errors.js";
+import { assertEtagMatches, computeEtag } from "../etag.js";
 import type { Vault } from "../vault.js";
 
 export const editNoteSchema = z.object({
@@ -23,6 +24,10 @@ export const editNoteSchema = z.object({
     .boolean()
     .optional()
     .describe("replace 模式：替换全部匹配；默认 false（片段必须唯一才执行）"),
+  if_match: z
+    .string()
+    .optional()
+    .describe("乐观锁：传入上次 read_note 返回的 etag，与当前内容不符时拒绝写入（推荐多客户端场景使用）"),
 });
 
 export interface EditedNote {
@@ -30,6 +35,8 @@ export interface EditedNote {
   path: string;
   mode: "overwrite" | "append" | "replace";
   size_bytes: number;
+  /** 编辑后内容的 SHA-256，可链式用于下一次编辑的 if_match */
+  etag: string;
 }
 
 /** F05：编辑笔记。replace 在未找到/多处匹配时报错且文件不变（E04）；替换为字面量（不解析 $ 模式）。 */
@@ -55,6 +62,7 @@ export async function editNote(
   }
 
   const current = await readFile(abs, "utf8");
+  assertEtagMatches(current, input.if_match, rel);
   let next: string;
   if (input.mode === "overwrite") {
     next = input.content;
@@ -85,7 +93,7 @@ export async function editNote(
   if (next !== current) {
     await writeFile(abs, next, "utf8");
   }
-  return { path: rel, mode: input.mode, size_bytes: Buffer.byteLength(next, "utf8") };
+  return { path: rel, mode: input.mode, size_bytes: Buffer.byteLength(next, "utf8"), etag: computeEtag(next) };
 }
 
 function countOccurrences(haystack: string, needle: string): number {
