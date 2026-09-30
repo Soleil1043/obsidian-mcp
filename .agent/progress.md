@@ -164,6 +164,22 @@
 
 **Git**：见下方 T008 commit
 
+### [T009] delete_note 工具 — 2026-09-30
+
+**操作**：
+- organize.ts 增加 delete_note 工具（F06/E07），七个工具全部完成
+
+**涉及文件**：
+- `src/tools/organize.ts` — deleteNote 处理器：默认移入 vault 根 `.trash/`（D003），同名冲突加时间戳后缀（同毫秒冲突再加序号），返回 trash_path 告知去向；`permanent=true` 才 rm 永久删除；`.trash/` 内文件默认删除 → INVALID_INPUT 提示用 permanent（trash 是终点）
+- `tests/tools.test.ts` — 新增 6 个用例：默认进 trash 且内容保留、同名冲突加后缀且不覆盖已有、permanent 永久删、trash 内文件引导 permanent、E02、E05/E06。修正两处测试断言（时间戳含 T、fixture 预置 .trash 目录）
+
+**验证方式**：
+- `npm run build` 成功；`npm test` 62 passed（smoke 1 + vault 15 + tools 46）
+
+**状态**：✅ 通过验证（待用户确认）
+
+**Git**：见下方 T009 commit
+
 ---
 
 ## 问题追踪

@@ -9,7 +9,8 @@ import { Vault } from "../src/vault";
 import { createNote } from "../src/tools/create";
 import { editNote } from "../src/tools/edit";
 import { listNotes } from "../src/tools/list";
-import { moveNote } from "../src/tools/organize";
+import { moveNote, deleteNote } from "../src/tools/organize";
+import { readdirSync } from "node:fs";
 import { readNote } from "../src/tools/read";
 import { searchNotes } from "../src/tools/search";
 
@@ -472,5 +473,66 @@ describe("move_note（F06）", () => {
       "NOT_MARKDOWN",
     );
     expect(readFileSync(path.join(vault.root, "note.md"), "utf8")).toBe("# hello\n");
+  });
+});
+
+describe("delete_note（F06/E07）", () => {
+  it("默认移入 vault 根 .trash/，原路径消失，内容保留", async () => {
+    const vault = makeFixtureVault();
+    const result = await deleteNote(vault, { path: "journal/2026-09-30.md" });
+    expect(result).toEqual({
+      path: "journal/2026-09-30.md",
+      permanent: false,
+      trash_path: ".trash/2026-09-30.md",
+    });
+    expect(existsSync(path.join(vault.root, "journal", "2026-09-30.md"))).toBe(false);
+    expect(readFileSync(path.join(vault.root, ".trash", "2026-09-30.md"), "utf8")).toBe("c");
+  });
+
+  it("trash 内同名冲突时自动加时间戳后缀，且不覆盖已有文件", async () => {
+    const vault = makeFixtureVault();
+    writeFileSync(path.join(vault.root, ".trash", "2026-09-30.md"), "previous");
+    const result = await deleteNote(vault, { path: "journal/2026-09-30.md" });
+    expect(result.trash_path).toMatch(/^\.trash\/2026-09-30\.\d{8}T\d{9}\.md$/);
+    expect(readFileSync(path.join(vault.root, ".trash", "2026-09-30.md"), "utf8")).toBe(
+      "previous",
+    );
+    const trashed = readdirSync(path.join(vault.root, ".trash")).find((name) =>
+      /^2026-09-30\.\d{8}T\d{9}\.md$/.test(name),
+    );
+    expect(trashed).toBeDefined();
+    expect(readFileSync(path.join(vault.root, ".trash", trashed!), "utf8")).toBe("c");
+  });
+
+  it("permanent=true 永久删除", async () => {
+    const vault = makeFixtureVault();
+    const result = await deleteNote(vault, { path: "note.md", permanent: true });
+    expect(result).toEqual({ path: "note.md", permanent: true });
+    expect(existsSync(path.join(vault.root, "note.md"))).toBe(false);
+    expect(existsSync(path.join(vault.root, ".trash", "note.md"))).toBe(false);
+  });
+
+  it(".trash 内的文件默认删除时报 INVALID_INPUT，提示用 permanent", async () => {
+    const vault = makeFixtureVault();
+    await expectVaultError(
+      () => deleteNote(vault, { path: ".trash/deleted.md" }),
+      "INVALID_INPUT",
+    );
+    await deleteNote(vault, { path: ".trash/deleted.md", permanent: true });
+    expect(existsSync(path.join(vault.root, ".trash", "deleted.md"))).toBe(false);
+  });
+
+  it("E02: 删除不存在的笔记报 NOT_FOUND", async () => {
+    const vault = makeFixtureVault();
+    await expectVaultError(() => deleteNote(vault, { path: "ghost.md" }), "NOT_FOUND");
+  });
+
+  it("E05/E06: 越界与非 .md 被拒绝", async () => {
+    const vault = makeFixtureVault();
+    await expectVaultError(
+      () => deleteNote(vault, { path: "../outside.md" }),
+      "PATH_ESCAPES_VAULT",
+    );
+    await expectVaultError(() => deleteNote(vault, { path: "image.png" }), "NOT_MARKDOWN");
   });
 });
