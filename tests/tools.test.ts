@@ -1,4 +1,5 @@
-import { existsSync, mkdirSync, readFileSync, readdirSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
 import path from "node:path";
 
 import { afterEach, describe, expect, it } from "vitest";
@@ -601,5 +602,144 @@ describe("etag 并发控制（F11/E10）", () => {
     const read = await readNote(vault, { path: "note.md" });
     await deleteNote(vault, { path: "note.md", if_match: read.etag });
     expect(existsSync(path.join(vault.root, "note.md"))).toBe(false);
+  });
+});
+
+describe("symlink escape regression (vault boundary)", () => {
+  const SENTINEL = "SENTINEL_ORIGINAL\n";
+  const outsideRoots: string[] = [];
+
+  afterEach(() => {
+    for (const root of outsideRoots.splice(0)) {
+      rmSync(root, { recursive: true, force: true });
+    }
+  });
+
+  function makeOutsideDir(label: string): string {
+    const dir = mkdtempSync(path.join(tmpdir(), `obsidian-mcp-${label}-`));
+    outsideRoots.push(dir);
+    return dir;
+  }
+
+  /** Plants the two escapes an attacker would use: a file link and a directory link. */
+  function plantEscapes(): { vault: Vault; outside: string; sentinel: string } {
+    const outside = makeOutsideDir("outside");
+    const sentinel = path.join(outside, "secret.md");
+    writeFileSync(sentinel, SENTINEL);
+    const vault = makeFixtureVault();
+    symlinkSync(sentinel, path.join(vault.root, "leak.md"));
+    symlinkSync(outside, path.join(vault.root, "leakdir"));
+    return { vault, outside, sentinel };
+  }
+
+  function expectSentinelUntouched(sentinel: string): void {
+    expect(readFileSync(sentinel, "utf8")).toBe(SENTINEL);
+  }
+
+  it("read_note refuses to read through a symlink pointing outside the vault", async () => {
+    const { vault, sentinel } = plantEscapes();
+    await expectVaultError(() => readNote(vault, { path: "leak.md" }), "PATH_ESCAPES_VAULT");
+    expectSentinelUntouched(sentinel);
+  });
+
+  it("edit_note refuses to write outside the vault through a symlink", async () => {
+    const { vault, sentinel } = plantEscapes();
+    await expectVaultError(
+      () => editNote(vault, { path: "leak.md", mode: "overwrite", content: "PWNED" }),
+      "PATH_ESCAPES_VAULT",
+    );
+    expectSentinelUntouched(sentinel);
+  });
+
+  it("create_note overwrite refuses to clobber an outside file through a symlink", async () => {
+    const { vault, sentinel } = plantEscapes();
+    await expectVaultError(
+      () => createNote(vault, { path: "leak.md", content: "PWNED", overwrite: true }),
+      "PATH_ESCAPES_VAULT",
+    );
+    expectSentinelUntouched(sentinel);
+  });
+
+  it("create_note refuses to create a file outside the vault under a symlinked directory", async () => {
+    const { vault, outside } = plantEscapes();
+    await expectVaultError(
+      () => createNote(vault, { path: "leakdir/planted.md", content: "PWNED" }),
+      "PATH_ESCAPES_VAULT",
+    );
+    expect(existsSync(path.join(outside, "planted.md"))).toBe(false);
+  });
+
+  it("move_note refuses a symlink as its source", async () => {
+    const { vault, sentinel } = plantEscapes();
+    await expectVaultError(
+      () => moveNote(vault, { from: "leak.md", to: "moved.md" }),
+      "PATH_ESCAPES_VAULT",
+    );
+    expectSentinelUntouched(sentinel);
+  });
+
+  it("move_note refuses a symlinked directory as its destination", async () => {
+    const { vault, outside } = plantEscapes();
+    await expectVaultError(
+      () => moveNote(vault, { from: "note.md", to: "leakdir/dropped.md" }),
+      "PATH_ESCAPES_VAULT",
+    );
+    expect(existsSync(path.join(outside, "dropped.md"))).toBe(false);
+    expect(existsSync(path.join(vault.root, "note.md"))).toBe(true);
+  });
+
+  it("delete_note refuses to delete an outside file through a symlink", async () => {
+    const { vault, sentinel } = plantEscapes();
+    await expectVaultError(
+      () => deleteNote(vault, { path: "leak.md", permanent: true }),
+      "PATH_ESCAPES_VAULT",
+    );
+    expectSentinelUntouched(sentinel);
+  });
+
+  it("list_notes refuses to list a symlinked directory", async () => {
+    const { vault } = plantEscapes();
+    await expectVaultError(() => listNotes(vault, { folder: "leakdir" }), "PATH_ESCAPES_VAULT");
+  });
+
+  it("search_notes refuses a symlinked folder and leaks no outside content", async () => {
+    const { vault } = plantEscapes();
+    await expectVaultError(
+      () => searchNotes(vault, { query: "SENTINEL", folder: "leakdir" }),
+      "PATH_ESCAPES_VAULT",
+    );
+    const wholeVaultHits = await searchNotes(vault, { query: "SENTINEL" });
+    expect(wholeVaultHits).toEqual([]);
+  });
+
+  it("rejects a dangling symlink as a path segment: its target cannot be confirmed inside", async () => {
+    const outside = makeOutsideDir("dangling");
+    const vault = makeFixtureVault();
+    symlinkSync(path.join(outside, "not-created-yet"), path.join(vault.root, "danglingdir"));
+    await expectVaultError(
+      () => createNote(vault, { path: "danglingdir/planted.md", content: "PWNED" }),
+      "PATH_ESCAPES_VAULT",
+    );
+    expect(existsSync(path.join(outside, "not-created-yet", "planted.md"))).toBe(false);
+  });
+
+  it("rejects a chained symlink whose inner link eventually points outside", async () => {
+    const outside = makeOutsideDir("chain");
+    writeFileSync(path.join(outside, "secret.md"), SENTINEL);
+    const vault = makeFixtureVault();
+    const inner = path.join(vault.root, "inner");
+    symlinkSync(path.join(outside, "secret.md"), inner);
+    symlinkSync(inner, path.join(vault.root, "outer.md"));
+    await expectVaultError(() => readNote(vault, { path: "outer.md" }), "PATH_ESCAPES_VAULT");
+    expect(readFileSync(path.join(outside, "secret.md"), "utf8")).toBe(SENTINEL);
+  });
+
+  it("still reads and creates normally when the path never leaves the vault", async () => {
+    const vault = makeFixtureVault();
+    symlinkSync(path.join(vault.root, "note.md"), path.join(vault.root, "alias.md"));
+    const read = await readNote(vault, { path: "alias.md" });
+    expect(read.content).toBe("# hello\n");
+    const created = await createNote(vault, { path: "journal/new/nested.md", content: "ok" });
+    expect(created.path).toBe("journal/new/nested.md");
   });
 });

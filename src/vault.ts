@@ -16,7 +16,7 @@ export class Vault {
   readonly root: string;
 
   constructor(root: string) {
-    this.root = path.resolve(root);
+    this.root = fs.realpathSync(path.resolve(root));
   }
 
   /** 从 OBSIDIAN_VAULT_PATH 构造 vault（E01：未设置 / 不存在 / 非目录时启动即报错）。 */
@@ -67,12 +67,73 @@ export class Vault {
 
   /** 归一化后转为绝对平台路径；空相对路径解析为根目录。 */
   resolvePath(relativePath: string): string {
-    const joined = path.join(this.root, this.normalizeRelative(relativePath));
+    const normalized = this.normalizeRelative(relativePath);
+    const joined = path.join(this.root, normalized);
     // 防御性兜底：segments 已排除 ".."，此处保证结果必在根内
     if (joined !== this.root && !joined.startsWith(this.root + path.sep)) {
       throw new VaultError("PATH_ESCAPES_VAULT", `路径越出 vault 根: ${relativePath}`);
     }
+    this.assertWithinVault(normalized, relativePath);
     return joined;
+  }
+
+  /**
+   * Verify component by component that the path does not escape the vault root
+   * through symlinks.
+   *
+   * lstat every segment from the root down to the target: when a symlink is
+   * found, resolve its real target and check that it is still inside the root,
+   * then keep descending from the *resolved* location. Walking the resolved
+   * path is what catches chained links and a symlinked parent directory.
+   * Dangling symlinks are always rejected: their target does not exist yet, so
+   * there is nothing proving it lands inside the root, while a following
+   * `mkdir -p` / `writeFile` would create directories outside the vault.
+   * The first non-existent segment ends the check: the segments after it have
+   * not been created yet and therefore cannot form an escape.
+   */
+  private assertWithinVault(normalized: string, relativePath: string): void {
+    const isInside = (candidate: string): boolean =>
+      candidate === this.root || candidate.startsWith(this.root + path.sep);
+
+    let current = this.root;
+    for (const segment of normalized.split("/")) {
+      if (segment === "") continue;
+      const candidate = path.join(current, segment);
+
+      let stats: fs.Stats;
+      try {
+        stats = fs.lstatSync(candidate);
+      } catch (error) {
+        if ((error as NodeJS.ErrnoException).code === "ENOENT") return;
+        throw error;
+      }
+
+      if (!stats.isSymbolicLink()) {
+        current = candidate;
+        continue;
+      }
+
+      let resolved: string;
+      try {
+        resolved = fs.realpathSync(candidate);
+      } catch (error) {
+        if ((error as NodeJS.ErrnoException).code === "ENOENT") {
+          throw new VaultError(
+            "PATH_ESCAPES_VAULT",
+            `path contains a dangling symlink whose target cannot be confirmed inside the vault: ${relativePath}`,
+          );
+        }
+        throw error;
+      }
+      if (!isInside(resolved)) {
+        throw new VaultError("PATH_ESCAPES_VAULT", `symlink escapes the vault root: ${relativePath}`);
+      }
+      current = resolved;
+    }
+
+    if (!isInside(current)) {
+      throw new VaultError("PATH_ESCAPES_VAULT", `path escapes the vault root: ${relativePath}`);
+    }
   }
 
   /** resolvePath 并强制目标是 Markdown 文件（E06，后缀不区分大小写）。 */

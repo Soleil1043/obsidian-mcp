@@ -1,4 +1,4 @@
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import fs, { mkdirSync, mkdtempSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { homedir, tmpdir } from "node:os";
 import path from "node:path";
 
@@ -56,15 +56,23 @@ describe("Vault.fromEnv（E01 前置）", () => {
     );
   });
 
-  it("合法路径时构造成功，root 为绝对路径", () => {
+  it("constructs successfully on a valid path, with root as the canonical absolute path", () => {
     const root = makeTempVault();
     const vault = Vault.fromEnv({ OBSIDIAN_VAULT_PATH: root });
-    expect(vault.root).toBe(path.resolve(root));
+    expect(vault.root).toBe(fs.realpathSync(path.resolve(root)));
+  });
+
+  it("resolves root to its real path when the vault root itself is a symlink", () => {
+    const real = makeTempVault();
+    const link = `${makeTempVault()}-link`;
+    symlinkSync(real, link);
+    const vault = Vault.fromEnv({ OBSIDIAN_VAULT_PATH: link });
+    expect(vault.root).toBe(fs.realpathSync(real));
   });
 
   it('支持 "~" 展开为用户主目录', () => {
     const vault = Vault.fromEnv({ OBSIDIAN_VAULT_PATH: "~" });
-    expect(vault.root).toBe(path.resolve(homedir()));
+    expect(vault.root).toBe(fs.realpathSync(homedir()));
   });
 });
 
@@ -120,6 +128,48 @@ describe("Vault.resolvePath", () => {
   it("空字节被拒绝", () => {
     const vault = new Vault(makeTempVault());
     expectVaultError(() => vault.resolvePath("note\0.md"), "INVALID_PATH");
+  });
+
+  it("rejects a symlink pointing at a file outside the vault", () => {
+    const root = makeTempVault();
+    const outside = mkdtempSync(path.join(tmpdir(), "outside-target-"));
+    tempRoots.push(outside);
+    writeFileSync(path.join(outside, "secret.md"), "confidential");
+
+    symlinkSync(path.join(outside, "secret.md"), path.join(root, "symlink-outside.md"));
+    const vault = new Vault(root);
+
+    expectVaultError(() => vault.resolvePath("symlink-outside.md"), "PATH_ESCAPES_VAULT");
+  });
+
+  it("rejects a symlink pointing at a directory outside the vault (new file write)", () => {
+    const root = makeTempVault();
+    const outside = mkdtempSync(path.join(tmpdir(), "outside-dir-"));
+    tempRoots.push(outside);
+
+    symlinkSync(outside, path.join(root, "symlink-dir"));
+    const vault = new Vault(root);
+
+    expectVaultError(() => vault.resolvePath("symlink-dir/new-note.md"), "PATH_ESCAPES_VAULT");
+  });
+
+  it("rejects a dangling symlink pointing outside the vault", () => {
+    const root = makeTempVault();
+    const outside = mkdtempSync(path.join(tmpdir(), "outside-broken-"));
+    tempRoots.push(outside);
+
+    symlinkSync(path.join(outside, "nonexistent.md"), path.join(root, "broken.md"));
+    const vault = new Vault(root);
+
+    expectVaultError(() => vault.resolvePath("broken.md"), "PATH_ESCAPES_VAULT");
+  });
+
+  it("allows a symlink pointing at a file inside the vault", () => {
+    const root = makeTempVault();
+    symlinkSync(path.join(root, "note.md"), path.join(root, "internal-link.md"));
+    const vault = new Vault(root);
+
+    expect(vault.resolvePath("internal-link.md")).toBe(path.join(vault.root, "internal-link.md"));
   });
 });
 
