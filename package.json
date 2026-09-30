@@ -22,6 +22,14 @@
     "model-context-protocol"
   ],
   "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Soleil1043/obsidian-mcp.git"
+  },
+  "bugs": {
+    "url": "https://github.com/Soleil1043/obsidian-mcp/issues"
+  },
+  "homepage": "https://github.com/Soleil1043/obsidian-mcp#readme",
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.31.0",
     "zod": "^4.6.5"
