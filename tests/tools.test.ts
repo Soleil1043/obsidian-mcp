@@ -1,58 +1,24 @@
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
-import { tmpdir } from "node:os";
+import { existsSync, mkdirSync, readFileSync, readdirSync, writeFileSync } from "node:fs";
 import path from "node:path";
 
 import { afterEach, describe, expect, it } from "vitest";
 
-import { VaultError, type VaultErrorCode } from "../src/errors";
 import { Vault } from "../src/vault";
 import { createNote } from "../src/tools/create";
 import { editNote } from "../src/tools/edit";
 import { listNotes } from "../src/tools/list";
 import { moveNote, deleteNote } from "../src/tools/organize";
-import { readdirSync } from "node:fs";
 import { readNote } from "../src/tools/read";
 import { searchNotes } from "../src/tools/search";
-
-const tempRoots: string[] = [];
-
-/** 构造测试 fixture vault，目录布局固定，供断言引用。 */
-function makeFixtureVault(): Vault {
-  const root = mkdtempSync(path.join(tmpdir(), "obsidian-mcp-tools-"));
-  tempRoots.push(root);
-  writeFileSync(path.join(root, "note.md"), "# hello\n");
-  writeFileSync(path.join(root, "README.MD"), "readme\n");
-  writeFileSync(path.join(root, "image.png"), "binary");
-  mkdirSync(path.join(root, "journal"));
-  writeFileSync(path.join(root, "journal", "2.md"), "a");
-  writeFileSync(path.join(root, "journal", "10.md"), "b");
-  writeFileSync(path.join(root, "journal", "2026-09-30.md"), "c");
-  mkdirSync(path.join(root, ".obsidian"));
-  writeFileSync(path.join(root, ".obsidian", "app.json"), "{}");
-  mkdirSync(path.join(root, ".trash"));
-  writeFileSync(path.join(root, ".trash", "deleted.md"), "x");
-  mkdirSync(path.join(root, "empty"));
-  return new Vault(root);
-}
-
-async function expectVaultError(
-  fn: () => unknown | Promise<unknown>,
-  code: VaultErrorCode,
-): Promise<void> {
-  try {
-    await fn();
-  } catch (error) {
-    expect(error).toBeInstanceOf(VaultError);
-    expect((error as VaultError).code).toBe(code);
-    return;
-  }
-  expect.fail(`expected VaultError with code ${code}`);
-}
+import {
+  cleanupTempVaults,
+  expectVaultError,
+  makeFixtureVault,
+  makeSearchVault,
+} from "./helpers";
 
 afterEach(() => {
-  for (const root of tempRoots.splice(0)) {
-    rmSync(root, { recursive: true, force: true });
-  }
+  cleanupTempVaults();
 });
 
 describe("list_notes（F01）", () => {
@@ -165,19 +131,6 @@ describe("read_note（F02）", () => {
     );
   });
 });
-
-/** 搜索专用 fixture：alpha.md 两处 world（一行大小写混合），sub/beta.md 两处全大写/小写。 */
-function makeSearchVault(): Vault {
-  const root = mkdtempSync(path.join(tmpdir(), "obsidian-mcp-search-"));
-  tempRoots.push(root);
-  writeFileSync(path.join(root, "alpha.md"), "Hello World\nworld peace\nbye\n");
-  mkdirSync(path.join(root, "sub"));
-  writeFileSync(path.join(root, "sub", "beta.md"), "WORLD tour\nnothing\nhello again world\n");
-  mkdirSync(path.join(root, "hidden"));
-  writeFileSync(path.join(root, "hidden", ".secret.md"), "world\n");
-  writeFileSync(path.join(root, "image.png"), "world");
-  return new Vault(root);
-}
 
 describe("search_notes（F03）", () => {
   it("默认大小写不敏感，按文件分组返回行命中与文件总次数，跳过隐藏目录与附件", async () => {

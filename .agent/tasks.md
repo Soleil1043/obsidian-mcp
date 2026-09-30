@@ -24,7 +24,7 @@
 - [x] T009: delete_note 工具 | 依赖: T002 | 涉及文件: src/tools/organize.ts, tests/tools.test.ts | 验收: `npm test`——默认移入 vault 根 `.trash/`（同名自动加后缀）；`permanent=true` 永久删除 | 覆盖: F06, E07
 
 <!-- 装配与交付 -->
-- [ ] T010: MCP server 装配与 stdio 入口 | 依赖: T003, T004, T005, T006, T007, T008, T009 | 涉及文件: src/server.ts, src/index.ts, package.json（bin 字段） | 验收: 设置 OBSIDIAN_VAULT_PATH 后 `npm run build` 并用 MCP Inspector（`npx @modelcontextprotocol/inspector node dist/index.js`）连接成功、列出 7 个工具并可调用；未设置变量时启动即报错退出（E01） | 覆盖: E01 + F01-F06（装配）
+- [x] T010: MCP server 装配与 stdio 入口 | 依赖: T003, T004, T005, T006, T007, T008, T009 | 涉及文件: src/server.ts, src/index.ts, package.json（bin 字段） | 验收: 设置 OBSIDIAN_VAULT_PATH 后 `npm run build` 并用 MCP Inspector（`npx @modelcontextprotocol/inspector node dist/index.js`）连接成功、列出 7 个工具并可调用；未设置变量时启动即报错退出（E01） | 覆盖: E01 + F01-F06（装配）
 - [ ] T011: README 使用文档 | 依赖: T010 | 涉及文件: README.md | 验收: 按文档可独立完成安装与配置——含 harness 配置 JSON 示例、环境变量说明、工具清单 | 覆盖: 无（交付文档）
 
 ---

@@ -180,6 +180,27 @@
 
 **Git**：见下方 T009 commit
 
+### [T010] MCP server 装配与 stdio 入口 — 2026-09-30
+
+**操作**：
+- 装配 7 个工具到 McpServer 并接通 stdio transport；测试公共 fixture 抽到 tests/helpers.ts
+
+**涉及文件**：
+- `src/server.ts` — createMcpServer：registerTool 循环注册（inputSchema 用 zod raw shape），工具结果 JSON 序列化返回；VaultError → isError result（`code: message`），未知错误 → INTERNAL_ERROR，不向 transport 抛异常
+- `src/index.ts` — stdio 入口：fromEnv 失败时 stderr + exit(1)（E01）；shebang 供 bin/npx；诊断信息只走 stderr（stdout 是协议通道）
+- `tests/helpers.ts` — makeFixtureVault / makeSearchVault / expectVaultError / cleanupTempVaults 抽公共
+- `tests/tools.test.ts` — 改用 helpers（断言不变）
+- `tests/server.test.ts` — 5 个集成用例：真实 MCP Client + InMemory transport，覆盖 7 工具注册、list/read/search 调用、域错误 isError 且连接存活、schema 校验错误
+
+**验证方式**：
+- `npm test` 67 passed（smoke 1 + vault 15 + server 5 + tools 46）
+- E01 实测：无 OBSIDIAN_VAULT_PATH 时 `node dist/index.js` → stderr 提示 + exit=1
+- 真实 stdio 端到端：管道发送 initialize/initialized/tools/list/tools/call → 7 工具全部列出；read_note 实读 AGENTS.md 返回正确内容，exit=0
+
+**状态**：✅ 通过验证（待用户确认）
+
+**Git**：见下方 T010 commit
+
 ---
 
 ## 问题追踪
