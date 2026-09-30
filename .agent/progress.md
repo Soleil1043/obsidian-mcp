@@ -114,6 +114,23 @@
 
 **Git**：见下方 T005 commit
 
+### [T006] create_note 工具 — 2026-09-30
+
+**操作**：
+- 新增 create_note 工具（F04），第一个写侧工具；errors.ts 补 ALREADY_EXISTS 错误码
+
+**涉及文件**：
+- `src/tools/create.ts` — createNote 处理器：resolveMarkdownPath 校验 → stat 检查（目录冒名 NOT_A_FILE / 已存在 ALREADY_EXISTS（E03））→ mkdir recursive 建父目录 → writeFile；返回归一化路径与字节数
+- `src/errors.ts` — 错误码新增 ALREADY_EXISTS（E03，后续 move 冲突 E08 复用）
+- `tests/tools.test.ts` — 新增 6 个用例：多级父目录自动创建且内容落盘一致、空内容默认、E03 报错且原文件不变、overwrite 覆盖、E05/E06 拒绝、win32 反斜杠
+
+**验证方式**：
+- `npm run build` 成功；`npm test` 42 passed（smoke 1 + vault 15 + tools 26）
+
+**状态**：✅ 通过验证（待用户确认）
+
+**Git**：见下方 T006 commit
+
 ---
 
 ## 问题追踪

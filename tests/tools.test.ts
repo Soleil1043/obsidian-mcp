@@ -1,4 +1,4 @@
-import { existsSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 
@@ -6,6 +6,7 @@ import { afterEach, describe, expect, it } from "vitest";
 
 import { VaultError, type VaultErrorCode } from "../src/errors";
 import { Vault } from "../src/vault";
+import { createNote } from "../src/tools/create";
 import { listNotes } from "../src/tools/list";
 import { readNote } from "../src/tools/read";
 import { searchNotes } from "../src/tools/search";
@@ -238,4 +239,67 @@ describe("search_notes（F03）", () => {
       "NOT_A_DIRECTORY",
     );
   });
+});
+
+describe("create_note（F04）", () => {
+  it("创建新笔记成功，多级父目录自动创建，内容落盘一致", async () => {
+    const vault = makeFixtureVault();
+    const result = await createNote(vault, {
+      path: "notes/2026/deep/new.md",
+      content: "# Title\nbody\n",
+    });
+    expect(result).toEqual({
+      path: "notes/2026/deep/new.md",
+      size_bytes: Buffer.byteLength("# Title\nbody\n", "utf8"),
+    });
+    expect(readFileSync(path.join(vault.root, "notes", "2026", "deep", "new.md"), "utf8")).toBe(
+      "# Title\nbody\n",
+    );
+  });
+
+  it("省略 content 时创建空笔记", async () => {
+    const vault = makeFixtureVault();
+    const result = await createNote(vault, { path: "empty.md" });
+    expect(result.size_bytes).toBe(0);
+    expect(readFileSync(path.join(vault.root, "empty.md"), "utf8")).toBe("");
+  });
+
+  it("E03: 目标已存在且未显式 overwrite 时报错，原文件不变", async () => {
+    const vault = makeFixtureVault();
+    await expectVaultError(
+      () => createNote(vault, { path: "note.md", content: "clobber" }),
+      "ALREADY_EXISTS",
+    );
+    expect(readFileSync(path.join(vault.root, "note.md"), "utf8")).toBe("# hello\n");
+  });
+
+  it("overwrite=true 时覆盖成功", async () => {
+    const vault = makeFixtureVault();
+    const result = await createNote(vault, {
+      path: "note.md",
+      content: "replaced",
+      overwrite: true,
+    });
+    expect(result.size_bytes).toBe(8);
+    expect(readFileSync(path.join(vault.root, "note.md"), "utf8")).toBe("replaced");
+  });
+
+  it("E05/E06: 越界与非 .md 路径被拒绝", async () => {
+    const vault = makeFixtureVault();
+    await expectVaultError(
+      () => createNote(vault, { path: "../outside.md" }),
+      "PATH_ESCAPES_VAULT",
+    );
+    await expectVaultError(() => createNote(vault, { path: "file.txt" }), "NOT_MARKDOWN");
+  });
+
+  it.runIf(process.platform === "win32")(
+    "Windows 反斜杠路径可创建，返回 POSIX 路径",
+    async () => {
+      const vault = makeFixtureVault();
+      const result = await createNote(vault, { path: "sub\\new.md" });
+      expect(result.path).toBe("sub/new.md");
+      expect(existsSync(path.join(vault.root, "sub", "new.md"))).toBe(true);
+    },
+  );
 });
