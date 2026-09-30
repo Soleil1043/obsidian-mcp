@@ -62,6 +62,24 @@
 
 **Git**：见下方 T002 commit
 
+### [T003] list_notes 工具 — 2026-09-30
+
+**操作**：
+- 新增第一个 MCP 工具 list_notes（F01）；vault.ts 提取 normalizeRelative 公开方法供工具层显示路径用；errors.ts 补 NOT_FOUND、NOT_A_DIRECTORY 两个工具层错误码
+
+**涉及文件**：
+- `src/tools/list.ts` — listNotes 处理器 + zod schema + listNotesTool 定义（T010 装配用）；文件夹在前、名称排序（数值感知）；跳过点开头隐藏条目与非 .md 文件；ENOENT→NOT_FOUND、非目录→NOT_A_DIRECTORY
+- `src/vault.ts` — normalizeRelative 从 resolvePath 中提取（行为不变，tests 全绿）
+- `src/errors.ts` — 错误码新增 NOT_FOUND（E02）、NOT_A_DIRECTORY
+- `tests/tools.test.ts` — 7 个用例：根/子目录列表与排序、空目录、省略=留空、NOT_FOUND、NOT_A_DIRECTORY、E05 传播；修复了测试助手中未 await 的 Promise（教训：expectVaultError 需统一 await）
+
+**验证方式**：
+- `npm run build` 成功；`npm test` 23 passed（smoke 1 + vault 15 + tools 7）
+
+**状态**：✅ 通过验证（待用户确认）
+
+**Git**：见下方 T003 commit
+
 ---
 
 ## 问题追踪

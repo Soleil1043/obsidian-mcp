@@ -9,7 +9,9 @@ export type VaultErrorCode =
   | "INVALID_PATH" // 空字节等非法输入
   | "PATH_NOT_RELATIVE" // E05: 绝对路径（根路径 / 盘符）
   | "PATH_ESCAPES_VAULT" // E05: `..` 越出 vault 根
-  | "NOT_MARKDOWN"; // E06: 目标不是 .md 文件
+  | "NOT_MARKDOWN" // E06: 目标不是 .md 文件
+  | "NOT_FOUND" // E02: vault 内目标（笔记/目录）不存在
+  | "NOT_A_DIRECTORY"; // 目标存在但不是目录
 
 export class VaultError extends Error {
   readonly code: VaultErrorCode;

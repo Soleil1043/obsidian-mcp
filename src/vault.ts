@@ -45,11 +45,11 @@ export class Vault {
   }
 
   /**
-   * 把 vault 内相对路径解析为绝对平台路径；空字符串解析为根目录。
+   * 校验并归一化 vault 内相对路径，返回 POSIX 风格相对路径（根目录返回空字符串）。
    * 拒绝：绝对路径（`/` 开头或盘符）、任何 `..` 段、空字节；
    * Windows 上反斜杠视为路径分隔符，`.` 段与重复分隔符会被归一化。
    */
-  resolvePath(relativePath: string): string {
+  normalizeRelative(relativePath: string): string {
     const input = relativePath.trim();
     if (input.includes("\0")) {
       throw new VaultError("INVALID_PATH", `路径包含非法字符（null byte）: ${JSON.stringify(relativePath)}`);
@@ -62,7 +62,12 @@ export class Vault {
     if (segments.includes("..")) {
       throw new VaultError("PATH_ESCAPES_VAULT", `路径不允许包含 "..": ${relativePath}`);
     }
-    const joined = path.join(this.root, ...segments);
+    return segments.join("/");
+  }
+
+  /** 归一化后转为绝对平台路径；空相对路径解析为根目录。 */
+  resolvePath(relativePath: string): string {
+    const joined = path.join(this.root, this.normalizeRelative(relativePath));
     // 防御性兜底：segments 已排除 ".."，此处保证结果必在根内
     if (joined !== this.root && !joined.startsWith(this.root + path.sep)) {
       throw new VaultError("PATH_ESCAPES_VAULT", `路径越出 vault 根: ${relativePath}`);
