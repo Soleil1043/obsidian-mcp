@@ -1,4 +1,11 @@
-import { existsSync, mkdirSync, readFileSync, readdirSync, writeFileSync } from "node:fs";
+import {
+  existsSync,
+  mkdirSync,
+  readFileSync,
+  readdirSync,
+  utimesSync,
+  writeFileSync,
+} from "node:fs";
 import path from "node:path";
 
 import { afterEach, describe, expect, it } from "vitest";
@@ -136,26 +143,25 @@ describe("read_note（F02）", () => {
   });
 });
 
-describe("search_notes（F03）", () => {
+describe("search_notes（F03/F10）", () => {
   it("默认大小写不敏感，按文件分组返回行命中与文件总次数，跳过隐藏目录与附件", async () => {
     const vault = makeSearchVault();
-    const hits = await searchNotes(vault, { query: "world", max_results: 1000 });
-    expect(hits).toEqual([
-      { path: "alpha.md", line_number: 1, line_text: "Hello World", match_count: 2 },
-      { path: "alpha.md", line_number: 2, line_text: "world peace", match_count: 2 },
-      { path: "sub/beta.md", line_number: 1, line_text: "WORLD tour", match_count: 2 },
-      { path: "sub/beta.md", line_number: 3, line_text: "hello again world", match_count: 2 },
-    ]);
+    const result = await searchNotes(vault, { query: "world" });
+    expect(result).toEqual({
+      next_cursor: null,
+      hits: [
+        { path: "alpha.md", line_number: 1, line_text: "Hello World", match_count: 2 },
+        { path: "alpha.md", line_number: 2, line_text: "world peace", match_count: 2 },
+        { path: "sub/beta.md", line_number: 1, line_text: "WORLD tour", match_count: 2 },
+        { path: "sub/beta.md", line_number: 3, line_text: "hello again world", match_count: 2 },
+      ],
+    });
   });
 
   it("case_sensitive=true 只匹配精确大小写", async () => {
     const vault = makeSearchVault();
-    const hits = await searchNotes(vault, {
-      query: "world",
-      case_sensitive: true,
-      max_results: 1000,
-    });
-    expect(hits.map((hit) => `${hit.path}:${hit.line_number}`)).toEqual([
+    const result = await searchNotes(vault, { query: "world", case_sensitive: true });
+    expect(result.hits.map((hit) => `${hit.path}:${hit.line_number}`)).toEqual([
       "alpha.md:2",
       "sub/beta.md:3",
     ]);
@@ -163,27 +169,111 @@ describe("search_notes（F03）", () => {
 
   it("folder 限定只搜索该子目录", async () => {
     const vault = makeSearchVault();
-    const hits = await searchNotes(vault, { query: "world", folder: "sub", max_results: 1000 });
-    expect(hits.map((hit) => hit.path)).toEqual(["sub/beta.md", "sub/beta.md"]);
+    const result = await searchNotes(vault, { query: "world", folder: "sub" });
+    expect(result.hits.map((hit) => hit.path)).toEqual(["sub/beta.md", "sub/beta.md"]);
   });
 
-  it("E09: 无匹配返回空列表", async () => {
+  it("E09: 无匹配返回空页", async () => {
     const vault = makeSearchVault();
-    expect(await searchNotes(vault, { query: "zebra" })).toEqual([]);
+    expect(await searchNotes(vault, { query: "zebra" })).toEqual({ hits: [], next_cursor: null });
   });
 
-  it("max_results 截断命中行数", async () => {
+  it("max_results 截断当页命中数并给出下一页游标", async () => {
     const vault = makeSearchVault();
-    const hits = await searchNotes(vault, { query: "world", max_results: 2 });
-    expect(hits).toHaveLength(2);
-    expect(hits.every((hit) => hit.path === "alpha.md")).toBe(true);
+    const page1 = await searchNotes(vault, { query: "world", max_results: 2 });
+    expect(page1.hits).toHaveLength(2);
+    expect(page1.hits.every((hit) => hit.path === "alpha.md")).toBe(true);
+    expect(page1.next_cursor).toBeDefined();
   });
 
-  it("空关键词与非法 max_results 报 INVALID_INPUT", async () => {
+  it("游标分页可翻完全部结果，不重不漏", async () => {
+    const vault = makeSearchVault();
+    const all: string[] = [];
+    let cursor: string | undefined;
+    let pages = 0;
+    do {
+      const page = await searchNotes(vault, {
+        query: "world",
+        max_results: 3,
+        ...(cursor ? { cursor } : {}),
+      });
+      all.push(...page.hits.map((hit) => `${hit.path}:${hit.line_number}`));
+      cursor = page.next_cursor ?? undefined;
+      pages += 1;
+    } while (cursor);
+    expect(pages).toBe(2);
+    expect(all).toEqual([
+      "alpha.md:1",
+      "alpha.md:2",
+      "sub/beta.md:1",
+      "sub/beta.md:3",
+    ]);
+  });
+
+  it("E13: 非法游标报 INVALID_INPUT", async () => {
+    const vault = makeSearchVault();
+    for (const cursor of ["not-a-cursor", Buffer.from("no json").toString("base64url"), "###"]) {
+      await expectVaultError(
+        () => searchNotes(vault, { query: "world", cursor }),
+        "INVALID_INPUT",
+      );
+    }
+  });
+
+  it("sort=modified 新文件在前，sort=matches 命中多的文件在前", async () => {
+    const vault = makeSearchVault();
+    const old = new Date("2020-01-01T00:00:00Z");
+    const recent = new Date("2026-01-01T00:00:00Z");
+    utimesSync(path.join(vault.root, "alpha.md"), old, old);
+    utimesSync(path.join(vault.root, "sub", "beta.md"), recent, recent);
+
+    const byModified = await searchNotes(vault, { query: "world", sort: "modified" });
+    expect(byModified.hits[0].path).toBe("sub/beta.md");
+
+    writeFileSync(path.join(vault.root, "alpha.md"), "world world world\n", { flag: "a" });
+    const byMatches = await searchNotes(vault, { query: "world", sort: "matches" });
+    expect(byMatches.hits[0].path).toBe("alpha.md");
+    expect(byMatches.hits[0].match_count).toBe(5);
+  });
+
+  it("tag 过滤：只返回含该标签的笔记（frontmatter 与行内均算）", async () => {
+    const vault = makeSearchVault();
+    writeFileSync(
+      path.join(vault.root, "tagged.md"),
+      "---\ntags: [journal]\n---\nworld in frontmatter note\n",
+    );
+    writeFileSync(
+      path.join(vault.root, "plain.md"),
+      "world without tag\n",
+    );
+    const result = await searchNotes(vault, { query: "world", tag: "journal" });
+    expect(result.hits.map((hit) => hit.path)).toEqual(["tagged.md"]);
+    expect(result.hits[0].match_count).toBe(1);
+
+    const byInline = await searchNotes(vault, { query: "打卡", tag: "daily" });
+    expect(byInline.hits).toEqual([]);
+  });
+
+  it("tag 过滤配合其他过滤：行内标签命中", async () => {
+    const vault = makeSearchVault();
+    writeFileSync(path.join(vault.root, "inline-tag.md"), "#journal\nworld here\n");
+    writeFileSync(
+      path.join(vault.root, "tagged.md"),
+      "---\ntags: [journal]\n---\nworld too\n",
+    );
+    const result = await searchNotes(vault, { query: "world", tag: "journal" });
+    expect(result.hits.map((hit) => hit.path).sort()).toEqual(["inline-tag.md", "tagged.md"]);
+  });
+
+  it("空关键词、非法 max_results、非法 tag 过滤报 INVALID_INPUT", async () => {
     const vault = makeSearchVault();
     await expectVaultError(() => searchNotes(vault, { query: "" }), "INVALID_INPUT");
     await expectVaultError(
       () => searchNotes(vault, { query: "world", max_results: 0 }),
+      "INVALID_INPUT",
+    );
+    await expectVaultError(
+      () => searchNotes(vault, { query: "world", tag: "a b" }),
       "INVALID_INPUT",
     );
   });

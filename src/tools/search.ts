@@ -4,6 +4,7 @@ import path from "node:path";
 import { z } from "zod";
 
 import { VaultError } from "../errors.js";
+import { collectNoteTags } from "./tags.js";
 import type { Vault } from "../vault.js";
 
 export const searchNotesSchema = z.object({
@@ -19,10 +20,22 @@ export const searchNotesSchema = z.object({
     .boolean()
     .optional()
     .describe("是否区分大小写；默认 false"),
+  sort: z
+    .enum(["path", "modified", "matches"])
+    .optional()
+    .describe("结果排序：path=按文件路径（默认）；modified=按修改时间（新在前）；matches=按文件命中数（多在前）"),
+  tag: z
+    .string()
+    .optional()
+    .describe("只搜索包含该标签的笔记（frontmatter tags 或行内 #tag；支持嵌套形式 a/b）"),
+  cursor: z
+    .string()
+    .optional()
+    .describe("分页游标：传上一次结果返回的 next_cursor 获取下一页"),
   max_results: z
     .number()
     .optional()
-    .describe("最多返回的命中行数；默认 100，上限 1000"),
+    .describe("每页最多返回的命中行数；默认 100，上限 1000"),
 });
 
 export interface SearchHit {
@@ -36,35 +49,49 @@ export interface SearchHit {
   match_count: number;
 }
 
+export interface SearchResult {
+  hits: SearchHit[];
+  /** 还有更多结果时给出下一页游标；翻完为 null */
+  next_cursor: string | null;
+}
+
+interface ScanEntry extends SearchHit {
+  mtimeMs: number;
+}
+
 const collator = new Intl.Collator("en", { sensitivity: "base", numeric: true });
-const DEFAULT_MAX_RESULTS = 100;
+const DEFAULT_PAGE_SIZE = 100;
 const HARD_MAX_RESULTS = 1000;
 
-/** F03：全文搜索。按行返回命中，文件内汇总 match_count；无匹配返回空列表（E09）。 */
+/** F03/F10：全文搜索。行级命中 + 文件级 match_count；游标分页、排序、标签过滤；无匹配返回空页（E09）。 */
 export async function searchNotes(
   vault: Vault,
   input: z.input<typeof searchNotesSchema>,
-): Promise<SearchHit[]> {
+): Promise<SearchResult> {
   const query = input.query;
   if (!query) {
     throw new VaultError("INVALID_INPUT", "搜索关键词不能为空");
   }
   const caseSensitive = input.case_sensitive ?? false;
-  const maxResults = clampMaxResults(input.max_results);
+  const sort = input.sort ?? "path";
+  const pageSize = clampPageSize(input.max_results);
+  const tagFilter = input.tag !== undefined ? normalizeTagFilter(input.tag) : null;
 
   const folderRel = vault.normalizeRelative(input.folder ?? "");
   const folderAbs = vault.resolvePath(folderRel);
   await assertDirectory(folderAbs, folderRel);
 
   const candidates = await collectMarkdownFiles(folderAbs, folderRel);
-  candidates.sort((a, b) => collator.compare(a.rel, b.rel));
-
-  const hits: SearchHit[] = [];
+  const entries: ScanEntry[] = [];
   for (const candidate of candidates) {
+    const fileStat = await statSafe(candidate.abs);
+    if (!fileStat) continue;
     const content = await readFileSafe(candidate.abs);
     if (content === null) continue;
+    if (tagFilter && !collectNoteTags(content).has(tagFilter)) continue;
+
     const lines = content.split(/\r\n|\r|\n/);
-    const fileHits: SearchHit[] = [];
+    const fileHits: Omit<ScanEntry, "mtimeMs">[] = [];
     let fileTotal = 0;
     for (let index = 0; index < lines.length; index += 1) {
       const count = countOccurrences(lines[index], query, caseSensitive);
@@ -77,23 +104,64 @@ export async function searchNotes(
         match_count: 0,
       });
     }
-    if (fileHits.length === 0) continue;
     for (const hit of fileHits) hit.match_count = fileTotal;
-    for (const hit of fileHits) {
-      if (hits.length >= maxResults) break;
-      hits.push(hit);
-    }
-    if (hits.length >= maxResults) break;
+    for (const hit of fileHits) entries.push({ ...hit, mtimeMs: Number(fileStat.mtimeMs) });
   }
-  return hits;
+
+  entries.sort((a, b) => compareEntries(a, b, sort));
+
+  const offset = input.cursor !== undefined ? decodeCursor(input.cursor) : 0;
+  // mtimeMs 仅供排序，不暴露给调用方
+  const page = entries
+    .slice(offset, offset + pageSize)
+    .map(({ path, line_number, line_text, match_count }) => ({ path, line_number, line_text, match_count }));
+  const nextCursor = offset + page.length < entries.length ? encodeCursor(offset + page.length) : null;
+  return { hits: page, next_cursor: nextCursor };
 }
 
-function clampMaxResults(value: number | undefined): number {
-  if (value === undefined) return DEFAULT_MAX_RESULTS;
+function compareEntries(a: ScanEntry, b: ScanEntry, sort: "path" | "modified" | "matches"): number {
+  if (sort === "modified" && a.mtimeMs !== b.mtimeMs) return b.mtimeMs - a.mtimeMs;
+  if (sort === "matches" && a.match_count !== b.match_count) return b.match_count - a.match_count;
+  const byPath = collator.compare(a.path, b.path);
+  if (byPath !== 0) return byPath;
+  return a.line_number - b.line_number;
+}
+
+function clampPageSize(value: number | undefined): number {
+  if (value === undefined) return DEFAULT_PAGE_SIZE;
   if (!Number.isInteger(value) || value < 1) {
     throw new VaultError("INVALID_INPUT", `max_results 必须是正整数: ${value}`);
   }
   return Math.min(value, HARD_MAX_RESULTS);
+}
+
+function normalizeTagFilter(tag: string): string {
+  const normalized = tag.trim().replace(/^#/, "");
+  if (normalized === "" || /\s/.test(normalized)) {
+    throw new VaultError("INVALID_INPUT", `非法标签过滤条件: ${JSON.stringify(tag)}`);
+  }
+  return normalized;
+}
+
+function encodeCursor(offset: number): string {
+  return Buffer.from(JSON.stringify({ offset }), "utf8").toString("base64url");
+}
+
+function decodeCursor(cursor: string): number {
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(Buffer.from(cursor, "base64url").toString("utf8"));
+  } catch {
+    throw new VaultError("INVALID_INPUT", "非法分页游标；请使用上一次结果返回的 next_cursor");
+  }
+  const offset =
+    typeof parsed === "object" && parsed !== null && "offset" in parsed
+      ? (parsed as { offset: unknown }).offset
+      : undefined;
+  if (typeof offset !== "number" || !Number.isInteger(offset) || offset < 0) {
+    throw new VaultError("INVALID_INPUT", "非法分页游标；请使用上一次结果返回的 next_cursor");
+  }
+  return offset;
 }
 
 async function assertDirectory(folderAbs: string, folderRel: string): Promise<void> {
@@ -149,6 +217,15 @@ async function readFileSafe(abs: string): Promise<string | null> {
   }
 }
 
+async function statSafe(abs: string): Promise<Awaited<ReturnType<typeof stat>> | null> {
+  try {
+    return await stat(abs);
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === "ENOENT") return null;
+    throw error;
+  }
+}
+
 function countOccurrences(line: string, query: string, caseSensitive: boolean): number {
   if (query.length === 0) return 0;
   const haystack = caseSensitive ? line : line.toLowerCase();
@@ -165,7 +242,7 @@ function countOccurrences(line: string, query: string, caseSensitive: boolean): 
 export const searchNotesTool = {
   name: "search_notes",
   description:
-    "在 Obsidian vault 中按关键词全文搜索笔记（纯文本子串匹配，非正则），返回命中文件、行号、行内容与该文件命中总次数。可用 folder 限定目录、case_sensitive 区分大小写；结果按 max_results 截断（默认 100）。点开头的隐藏目录（.obsidian、.trash 等）与非 Markdown 文件不在搜索范围。",
+    "在 Obsidian vault 中按关键词全文搜索笔记（纯文本子串匹配，非正则），返回命中文件、行号、行内容与该文件命中总次数。支持 sort 排序（path/modified/matches）、tag 标签过滤（frontmatter 或行内标签）、cursor 游标分页（结果超过 max_results 时用返回的 next_cursor 翻页）。点开头的隐藏目录（.obsidian、.trash 等）与非 Markdown 文件不在搜索范围。",
   schema: searchNotesSchema,
   handler: searchNotes,
 } as const;

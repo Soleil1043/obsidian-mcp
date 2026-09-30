@@ -80,9 +80,11 @@ describe("MCP server 装配（E01 + F01-F06）", () => {
       arguments: { query: "hello" },
     });
     expect(search.isError).toBeFalsy();
-    const hits = JSON.parse(textOf(search));
-    expect(hits).toHaveLength(1);
-    expect(hits[0]).toMatchObject({ path: "note.md", line_number: 1 });
+    const searchResult = JSON.parse(textOf(search)) as {
+      hits: Array<{ path: string; line_number: number }>;
+    };
+    expect(searchResult.hits).toHaveLength(1);
+    expect(searchResult.hits[0]).toMatchObject({ path: "note.md", line_number: 1 });
 
     await client.close();
     await server.close();

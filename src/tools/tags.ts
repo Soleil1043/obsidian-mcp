@@ -112,8 +112,8 @@ async function listTags(vault: Vault, folder: string | undefined): Promise<TagsR
   return { scanned: notes.length, tags };
 }
 
-/** 单篇笔记的标签集合：frontmatter tags + 行内 #tag 去重。 */
-function collectNoteTags(content: string): Set<string> {
+/** 单篇笔记的标签集合：frontmatter tags + 行内 #tag 去重（供 search_notes 标签过滤复用）。 */
+export function collectNoteTags(content: string): Set<string> {
   const tags = new Set<string>();
   const { data } = splitFrontmatter(content);
   for (const tag of normalizeTagList(data?.tags)) tags.add(tag);

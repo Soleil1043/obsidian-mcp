@@ -366,6 +366,24 @@
 
 **Git**：见下方 T018 commit
 
+### [T019] search_notes v2：分页/排序/标签过滤（v1.2） — 2026-10-01
+
+**操作**：
+- search_notes 升级（F10），返回结构变更为 { hits, next_cursor }（破坏性变更，工具为 v2 形态）
+
+**涉及文件**：
+- `src/tools/search.ts` — 游标分页（opaque base64url cursor 含 offset，非法/负值报 INVALID_INPUT，E13）；sort=path/modified（mtime 降序）/matches（命中数降序），mtimeMs 仅内部排序不外泄；tag 过滤复用 manage_tags 的 collectNoteTags（frontmatter+行内，带 # 自动去除）；全量扫描后排序再切片（不再提前截断）
+- `src/tools/tags.ts` — collectNoteTags 改为导出
+- `tests/tools.test.ts` — search 组全部更新到新返回结构，新增 5 用例（翻页不重不漏、双排序、标签过滤×2、非法游标）；server.test 同步
+- 修复 3 个实施问题：mtimeMs 泄漏进结果、测试误用同步 fs 的 appendFile、一处测试漏建 fixture 文件
+
+**验证方式**：
+- `npm run build` 成功；`npm test` 104 passed（smoke 1 + vault 15 + server 5 + tools 80 + links 3）
+
+**状态**：✅ 通过验证（待用户确认）
+
+**Git**：见下方 T019 commit
+
 ---
 
 ## 问题追踪
