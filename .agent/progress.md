@@ -216,6 +216,41 @@
 
 **Git**：见下方 T011 commit
 
+### [Phase 5] 最终验证总结 — 2026-09-30
+
+**测试**：干净重建（rm -rf dist + build）后全量测试 67 passed（smoke 1 + vault 15 + server 5 + tools 46），零报错零跳过。
+
+**MVP 功能逐条对照（spec 第 3 节）**：
+| Fxx | 功能 | 实现工具 | 验证证据 |
+|-----|------|---------|---------|
+| F01 | vault 浏览 | list_notes | tools.test 7 用例 + server.test 调用；跳过隐藏条目、排序、空目录 `[]` |
+| F02 | 读取笔记 | read_note | 逐字一致（含 frontmatter）+ 大小/时间；T010 起实读真实文件 |
+| F03 | 搜索笔记 | search_notes | 行级命中 + match_count；大小写/folder/max_results/E09 全覆盖 |
+| F04 | 创建笔记 | create_note | 多级父目录自动创建、E03 冲突、overwrite |
+| F05 | 编辑笔记 | edit_note | overwrite/append/replace 三模式；E04 防误伤 |
+| F06 | 整理笔记 | move_note / delete_note | 重命名/移动/进 .trash/ 全部经真实 stdio 端到端验证 |
+
+**边界与异常逐条对照（spec 第 5 节）**：
+| Exx | 期望行为 | 验证 |
+|-----|---------|------|
+| E01 | 未配置 vault 启动报错退出 | 实测：stderr 提示 + exit=1 |
+| E02 | 目标不存在报 not found 不创建 | read/edit/move/delete 各有断言，且 existsSync=false |
+| E03 | 已存在默认报错 | create：ALREADY_EXISTS 且原文件不变 |
+| E04 | 替换未找到/多处报错且文件不变 | REPLACE_NOT_FOUND / REPLACE_AMBIGUOUS，写盘前抛出 |
+| E05 | 路径穿越拒绝 | vault.test 15 用例（`..`/盘符/绝对路径/兜底校验） |
+| E06 | 非 .md 拒绝 | resolveMarkdownPath + 各工具用例 |
+| E07 | 删除默认进 .trash/ | 同名加时间戳后缀不覆盖；trash 内文件引导 permanent |
+| E08 | move 目标冲突报错源不动 | ALREADY_EXISTS，源/目标均原样 |
+| E09 | 搜索无匹配返回空列表 | `[]` 非 error |
+
+**端到端**：真实 stdio JSON-RPC（initialize → tools/list → tools/call）验证 7 工具注册与调用；全生命周期演示 create → append → search → move → delete，最终文件落位 `.trash/`，内容完整。注：server 并发处理请求（符合 JSON-RPC/MCP 语义），管道灌入多条消息时后续调用可能先于前者完成，真实 harness 按响应顺序发请求不受影响。
+
+**范围外说明**：CI/CD 与 GitHub 远程仓库不在 MVP（tasks.md 已注明）；如需发布 npm 或推远端，走需求变更流程补充。
+
+**遗留事项**：无。
+
+**状态**：✅ Phase 5 验证通过，MVP 交付完成
+
 ---
 
 ## 问题追踪
