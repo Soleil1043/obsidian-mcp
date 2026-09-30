@@ -201,6 +201,21 @@
 
 **Git**：见下方 T010 commit
 
+### [T011] README 使用文档 — 2026-09-30
+
+**操作**：
+- 重写 README.md 为完整使用文档，全部 11 个任务完成
+
+**涉及文件**：
+- `README.md` — 项目简介、7 工具清单（参数级）、安全与保护行为、安装构建、harness 接入（通用 MCP JSON + Claude Code CLI + Inspector 验证）、环境变量说明、开发指南与目录结构、项目状态
+
+**验证方式**：
+- 按文档步骤可独立完成：npm install → npm run build → 配置 OBSIDIAN_VAULT_PATH → 接入 harness
+
+**状态**：✅ 通过验证（待用户确认）
+
+**Git**：见下方 T011 commit
+
 ---
 
 ## 问题追踪
