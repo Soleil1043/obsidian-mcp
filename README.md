@@ -1,5 +1,7 @@
 # obsidian-mcp
 
+[![CI](https://github.com/Soleil1043/obsidian-mcp/actions/workflows/ci.yml/badge.svg)](https://github.com/Soleil1043/obsidian-mcp/actions/workflows/ci.yml)
+
 一个连接 Obsidian vault 的 MCP（Model Context Protocol）服务器：让 ZCode、Claude Code 等 AI harness 能浏览、搜索、编辑已有笔记，并把生成的内容作为新笔记写入 Obsidian。
 
 - 直接文件系统访问 vault，**无需 Obsidian 运行**
@@ -31,6 +33,8 @@
 ## 安装与构建
 
 ```bash
+git clone https://github.com/Soleil1043/obsidian-mcp.git
+cd obsidian-mcp
 npm install
 npm run build   # 产物输出 dist/
 ```
