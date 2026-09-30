@@ -6,6 +6,7 @@ import { afterEach, describe, expect, it } from "vitest";
 import { Vault } from "../src/vault";
 import { createNote } from "../src/tools/create";
 import { editNote } from "../src/tools/edit";
+import { createFolder } from "../src/tools/folders";
 import { manageFrontmatter } from "../src/tools/frontmatter";
 import { listNotes } from "../src/tools/list";
 import { manageTags } from "../src/tools/tags";
@@ -878,4 +879,43 @@ describe("manage_tags（F08）", () => {
       "INVALID_INPUT",
     );
   });
+});
+
+describe("create_folder（F09）", () => {
+  it("创建成功，多级父目录自动创建，返回归一化路径", async () => {
+    const vault = makeFixtureVault();
+    const result = await createFolder(vault, { path: "notes/2026/十月" });
+    expect(result).toEqual({ path: "notes/2026/十月" });
+    expect(existsSync(path.join(vault.root, "notes", "2026", "十月"))).toBe(true);
+  });
+
+  it("目录已存在报 ALREADY_EXISTS，目标是文件报 NOT_A_FILE", async () => {
+    const vault = makeFixtureVault();
+    await expectVaultError(
+      () => createFolder(vault, { path: "journal" }),
+      "ALREADY_EXISTS",
+    );
+    await expectVaultError(() => createFolder(vault, { path: "note.md" }), "NOT_A_FILE");
+  });
+
+  it("越界、隐藏目录、空路径被拒绝", async () => {
+    const vault = makeFixtureVault();
+    await expectVaultError(
+      () => createFolder(vault, { path: "../outside" }),
+      "PATH_ESCAPES_VAULT",
+    );
+    await expectVaultError(() => createFolder(vault, { path: ".hidden" }), "INVALID_INPUT");
+    await expectVaultError(() => createFolder(vault, { path: "a/.b/c" }), "INVALID_INPUT");
+    await expectVaultError(() => createFolder(vault, { path: "" }), "INVALID_INPUT");
+  });
+
+  it.runIf(process.platform === "win32")(
+    "Windows 反斜杠路径可创建，返回 POSIX 路径",
+    async () => {
+      const vault = makeFixtureVault();
+      const result = await createFolder(vault, { path: "sub\\deep\\dir" });
+      expect(result.path).toBe("sub/deep/dir");
+      expect(existsSync(path.join(vault.root, "sub", "deep", "dir"))).toBe(true);
+    },
+  );
 });

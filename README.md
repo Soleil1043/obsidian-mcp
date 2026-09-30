@@ -5,7 +5,7 @@
 一个连接 Obsidian vault 的 MCP（Model Context Protocol）服务器：让 ZCode、Claude Code 等 AI harness 能浏览、搜索、编辑已有笔记，并把生成的内容作为新笔记写入 Obsidian。
 
 - 直接文件系统访问 vault，**无需 Obsidian 运行**
-- 9 个细粒度 MCP 工具，stdio transport
+- 10 个细粒度 MCP 工具，stdio transport
 - TypeScript strict 实现，内置防误删/防误改保护与 etag 并发控制
 
 ## 工具清单
@@ -21,6 +21,7 @@
 | `delete_note` | 删除笔记（默认进 vault 根 `.trash/`） | `path`、`permanent?`、`if_match?` |
 | `manage_frontmatter` | YAML frontmatter 字段管理：get / set / delete（自动创建、删空移除整块、YAML 损坏拒绝写入） | `path`、`action`、`key?`、`value?`、`if_match?` |
 | `manage_tags` | 标签管理：list 统计全 vault 标签（frontmatter + 行内 `#tag`）、add / remove 单篇笔记标签（不影响嵌套子标签与代码块） | `action`、`path?`、`tags?`、`folder?`、`if_match?` |
+| `create_folder` | 创建文件夹（父级自动创建，已存在报错，隐藏目录拒绝） | `path` |
 
 所有路径均为 **vault 内相对路径**（POSIX 风格，如 `journal/2026-09-30.md`），必须以 `.md` 结尾。
 

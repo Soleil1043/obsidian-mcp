@@ -12,6 +12,7 @@ afterEach(() => {
 });
 
 const EXPECTED_TOOL_NAMES = [
+  "create_folder",
   "create_note",
   "delete_note",
   "edit_note",

@@ -349,6 +349,23 @@
 
 **Git**：见下方 T017 commit
 
+### [T018] create_folder 工具（v1.2） — 2026-10-01
+
+**操作**：
+- 新增 create_folder 工具（F09），共 10 个 MCP 工具
+
+**涉及文件**：
+- `src/tools/folders.ts` — mkdir recursive 建多级父目录；已存在 → ALREADY_EXISTS、目标为文件 → NOT_A_FILE；空路径/点开头隐藏目录（含路径中间段）→ INVALID_INPUT；越界路径由 vault 校验拒绝
+- `src/server.ts` + `tests/server.test.ts` + `README.md` — 注册第 10 个工具并同步清单
+- `tests/tools.test.ts` — 新增 4 用例（含 win32 反斜杠条件用例）
+
+**验证方式**：
+- `npm run build` 成功；`npm test` 99 passed（smoke 1 + vault 15 + server 5 + tools 75 + links 3）
+
+**状态**：✅ 通过验证（待用户确认）
+
+**Git**：见下方 T018 commit
+
 ---
 
 ## 问题追踪
