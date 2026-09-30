@@ -30,7 +30,7 @@ export const manageFrontmatterSchema = z.object({
     .describe("乐观锁：上次 read_note 返回的 etag，与当前内容不符时拒绝修改（set/delete 可用）"),
 });
 
-type FrontmatterData = Record<string, unknown>;
+export type FrontmatterData = Record<string, unknown>;
 
 export type FrontmatterResult =
   | { path: string; frontmatter: FrontmatterData | null }
@@ -110,7 +110,7 @@ export async function manageFrontmatter(
  * - YAML 非法或不是键值映射 → FRONTMATTER_INVALID（E12），调用方不会写盘；
  * - body 为闭合定界符之后的原文（含其前导空行），保证 set/delete 后正文逐字节不变。
  */
-function splitFrontmatter(raw: string): { data: FrontmatterData | null; body: string } {
+export function splitFrontmatter(raw: string): { data: FrontmatterData | null; body: string } {
   if (!FM_OPEN.test(raw)) return { data: null, body: raw };
   const rest = raw.slice(4);
   // 空白 frontmatter：---\n---\nbody
@@ -132,6 +132,11 @@ function splitFrontmatter(raw: string): { data: FrontmatterData | null; body: st
     throw new VaultError("FRONTMATTER_INVALID", "frontmatter 必须是键值映射（YAML 对象）");
   }
   return { data: parsed as FrontmatterData, body };
+}
+
+/** 用新的 frontmatter 数据与原正文重组文件内容（data 必须非空，调用方自行处理删空场景）。 */
+export function rebuildFrontmatter(data: FrontmatterData, body: string): string {
+  return `---\n${dump(data, { lineWidth: -1 })}---\n${body}`;
 }
 
 export const manageFrontmatterTool = {

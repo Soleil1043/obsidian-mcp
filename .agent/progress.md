@@ -330,6 +330,25 @@
 
 **Git**：见下方 T016 commit
 
+### [T017] manage_tags 工具（v1.2） — 2026-10-01
+
+**操作**：
+- 新增 manage_tags 工具（F08），list/add/remove 三动作，共 9 个 MCP 工具
+
+**涉及文件**：
+- `src/tools/tags.ts` — list：全 vault（folder 可限定）标签统计，frontmatter tags + 行内 #tag 双来源、按笔记去重，计数降序+字典序；行内标签正则带前后边界（不匹配标题/URL 锚点/嵌套父串），跳过代码栅栏，纯数字标签按 Obsidian 规则排除；add：写入 frontmatter tags（无 frontmatter 自动创建；行内已存在报 already_present 不重复写）；remove：frontmatter 与行内一并清除（精确整词、保留嵌套子标签如 #work/sub），删空 frontmatter 整块移除，标签不存在 found=false 不写盘；add/remove 支持 if_match
+- `src/tools/frontmatter.ts` — 导出 splitFrontmatter/rebuildFrontmatter/FrontmatterData 供复用
+- `src/links.ts` — 导出 splitCodeFences 供复用
+- `src/server.ts` + `tests/server.test.ts` + `README.md` — 注册第 9 个工具并同步清单
+- `tests/tools.test.ts` — 新增 9 用例；修正 3 处测试断言（scanned 口径、folder 期望、代码块正则误伤）
+
+**验证方式**：
+- `npm run build` 成功；`npm test` 95 passed（smoke 1 + vault 15 + server 5 + tools 71 + links 3）
+
+**状态**：✅ 通过验证（待用户确认）
+
+**Git**：见下方 T017 commit
+
 ---
 
 ## 问题追踪

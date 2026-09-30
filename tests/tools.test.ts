@@ -8,6 +8,7 @@ import { createNote } from "../src/tools/create";
 import { editNote } from "../src/tools/edit";
 import { manageFrontmatter } from "../src/tools/frontmatter";
 import { listNotes } from "../src/tools/list";
+import { manageTags } from "../src/tools/tags";
 import { moveNote, deleteNote } from "../src/tools/organize";
 import { readNote } from "../src/tools/read";
 import { searchNotes } from "../src/tools/search";
@@ -749,6 +750,131 @@ describe("manage_frontmatter（F07/E12）", () => {
     );
     await expectVaultError(
       () => manageFrontmatter(vault, { action: "delete", path: "fm.md" }),
+      "INVALID_INPUT",
+    );
+  });
+});
+
+describe("manage_tags（F08）", () => {
+  /** 标签 fixture：fm.md 覆盖 frontmatter+行内双来源与去重，inline.md 只有行内标签，code.md 有代码块。 */
+  function makeTagsVault(): Vault {
+    const vault = makeFixtureVault();
+    writeFileSync(
+      path.join(vault.root, "fm.md"),
+      "---\ntags: [work, project/x]\n---\n\n记录 #daily 与重复的 #work\n",
+    );
+    writeFileSync(path.join(vault.root, "inline.md"), "今天 #daily 打卡\n嵌套 #area/deep\n");
+    writeFileSync(path.join(vault.root, "code.md"), "```\n#fake 标签\n```\n正文 #real\n");
+    return vault;
+  }
+
+  it("list：统计两种来源并按笔记去重，计数降序、同名按字典序", async () => {
+    const vault = makeTagsVault();
+    const result = await manageTags(vault, { action: "list" });
+    expect(result).toEqual({
+      scanned: 8, // fixture vault 全部 8 篇 .md（含无标签的）
+      tags: [
+        { tag: "daily", note_count: 2 },
+        { tag: "area/deep", note_count: 1 },
+        { tag: "project/x", note_count: 1 },
+        { tag: "real", note_count: 1 },
+        { tag: "work", note_count: 1 },
+      ],
+    });
+  });
+
+  it("list：folder 限定统计范围", async () => {
+    const vault = makeTagsVault();
+    const result = await manageTags(vault, { action: "list", folder: "journal" });
+    expect(result).toEqual({ scanned: 3, tags: [] }); // journal 下 3 篇 .md，均无标签
+  });
+
+  it("add：写入 frontmatter tags，行内已存在的报告 already_present 不重复写", async () => {
+    const vault = makeTagsVault();
+    const result = await manageTags(vault, {
+      action: "add",
+      path: "fm.md",
+      tags: ["urgent", "work"],
+    });
+    expect(result.added).toEqual(["urgent"]);
+    expect(result.already_present).toEqual(["work"]);
+    const onDisk = readFileSync(path.join(vault.root, "fm.md"), "utf8");
+    expect(onDisk).toContain("urgent");
+    expect(onDisk).toContain("project/x"); // 既有标签保留
+    expect(onDisk.endsWith("记录 #daily 与重复的 #work\n")).toBe(true);
+  });
+
+  it("add：无 frontmatter 的笔记自动创建 tags 字段", async () => {
+    const vault = makeTagsVault();
+    const result = await manageTags(vault, { action: "add", path: "inline.md", tags: "inbox" });
+    expect(result.added).toEqual(["inbox"]);
+    const onDisk = readFileSync(path.join(vault.root, "inline.md"), "utf8");
+    expect(onDisk).toContain("tags:");
+    expect(onDisk).toContain("今天 #daily 打卡");
+  });
+
+  it("add：带 # 前缀自动去除，非法标签报 INVALID_INPUT", async () => {
+    const vault = makeTagsVault();
+    const result = await manageTags(vault, { action: "add", path: "inline.md", tags: "#pinned" });
+    expect(result.added).toEqual(["pinned"]);
+    await expectVaultError(
+      () => manageTags(vault, { action: "add", path: "inline.md", tags: "bad tag" }),
+      "INVALID_INPUT",
+    );
+    await expectVaultError(
+      () => manageTags(vault, { action: "add", path: "inline.md", tags: "123" }),
+      "INVALID_INPUT",
+    );
+  });
+
+  it("remove：frontmatter 与行内一并清除，不影响嵌套子标签与代码块", async () => {
+    const vault = makeTagsVault();
+    writeFileSync(
+      path.join(vault.root, "mix.md"),
+      "---\ntags: [work, work/sub]\n---\n正文 #work 和 #work/sub\n```\n#work 代码\n```\n",
+    );
+    const result = await manageTags(vault, { action: "remove", path: "mix.md", tags: "work" });
+    expect(result.removed_from_frontmatter).toEqual(["work"]);
+    expect(result.removed_inline).toEqual([{ tag: "work", count: 1 }]);
+    expect(result.found).toBe(true);
+
+    const onDisk = readFileSync(path.join(vault.root, "mix.md"), "utf8");
+    // 嵌套子标签与代码块里的 #work 都保留，只有正文中的独立 #work 被移除
+    expect(onDisk).toBe(
+      "---\ntags:\n  - work/sub\n---\n正文  和 #work/sub\n```\n#work 代码\n```\n",
+    );
+  });
+
+  it("remove：标签不存在时 found=false 且文件不变", async () => {
+    const vault = makeTagsVault();
+    const before = readFileSync(path.join(vault.root, "inline.md"), "utf8");
+    const result = await manageTags(vault, { action: "remove", path: "inline.md", tags: "ghost" });
+    expect(result.found).toBe(false);
+    expect(readFileSync(path.join(vault.root, "inline.md"), "utf8")).toBe(before);
+  });
+
+  it("E10: add 过期 if_match 报 ETAG_MISMATCH 且文件不变", async () => {
+    const vault = makeTagsVault();
+    await expectVaultError(
+      () =>
+        manageTags(vault, {
+          action: "add",
+          path: "inline.md",
+          tags: "x",
+          if_match: computeEtag("stale"),
+        }),
+      "ETAG_MISMATCH",
+    );
+    expect(readFileSync(path.join(vault.root, "inline.md"), "utf8")).toBe(
+      "今天 #daily 打卡\n嵌套 #area/deep\n",
+    );
+  });
+
+  it("add/remove 缺 path 或 tags 报 INVALID_INPUT", async () => {
+    const vault = makeTagsVault();
+    await expectVaultError(() => manageTags(vault, { action: "add", tags: "x" }), "INVALID_INPUT");
+    await expectVaultError(
+      () => manageTags(vault, { action: "remove", path: "inline.md" }),
       "INVALID_INPUT",
     );
   });

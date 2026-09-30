@@ -17,6 +17,7 @@ const EXPECTED_TOOL_NAMES = [
   "edit_note",
   "list_notes",
   "manage_frontmatter",
+  "manage_tags",
   "move_note",
   "read_note",
   "search_notes",

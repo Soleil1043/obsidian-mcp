@@ -9,6 +9,7 @@ import { listNotesTool } from "./tools/list.js";
 import { deleteNoteTool, moveNoteTool } from "./tools/organize.js";
 import { readNoteTool } from "./tools/read.js";
 import { searchNotesTool } from "./tools/search.js";
+import { manageTagsTool } from "./tools/tags.js";
 import type { Vault } from "./vault.js";
 
 export const SERVER_NAME = "obsidian-mcp";
@@ -35,6 +36,7 @@ const TOOLS: AnyTool[] = [
   moveNoteTool,
   deleteNoteTool,
   manageFrontmatterTool,
+  manageTagsTool,
 ];
 
 export function createMcpServer(vault: Vault): McpServer {

@@ -247,7 +247,7 @@ function resolveWikiRef(ref: string, context: MoveContext): WikiResolution {
 }
 
 /** 将内容切分为代码栅栏内/外的片段，正则处理只作用于非代码片段。 */
-function splitCodeFences(content: string): Array<{ text: string; code: boolean }> {
+export function splitCodeFences(content: string): Array<{ text: string; code: boolean }> {
   const lines = content.split(/(?<=\n)/);
   const segments: Array<{ text: string; code: boolean }> = [];
   let inFence = false;
