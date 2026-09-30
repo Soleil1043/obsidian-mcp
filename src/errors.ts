@@ -17,7 +17,9 @@ export type VaultErrorCode =
   | "ALREADY_EXISTS" // E03/E08: 目标已存在
   | "REPLACE_NOT_FOUND" // E04: 待替换片段未找到
   | "REPLACE_AMBIGUOUS" // E04: 待替换片段匹配多处
-  | "ETAG_MISMATCH"; // E10: if_match 与当前内容 etag 不符（乐观锁拒绝写入）
+  | "ETAG_MISMATCH" // E10: if_match 与当前内容 etag 不符（乐观锁拒绝写入）
+  | "FRONTMATTER_INVALID" // E12: frontmatter YAML 损坏/非法
+  | "KEY_NOT_FOUND"; // frontmatter 字段不存在
 
 export class VaultError extends Error {
   readonly code: VaultErrorCode;

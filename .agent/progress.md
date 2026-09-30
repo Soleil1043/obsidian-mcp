@@ -310,6 +310,26 @@
 
 **Git**：见下方 T015 commit
 
+### [T016] manage_frontmatter 工具（v1.2） — 2026-10-01
+
+**操作**：
+- 新增 manage_frontmatter 工具（F07），get/set/delete 三动作；依赖决策细化 D007（js-yaml 直用）
+
+**涉及文件**：
+- `src/tools/frontmatter.ts` — 自定义定界符切分（无闭合视为普通文本、空 ---/--- 支持、正文字节级保真）；js-yaml load/dump（lineWidth -1 防折行）；get 无 key 返回整个对象 / 带 key 返回 found+value；set 自动创建 frontmatter、支持嵌套值；delete 删到空整块移除；set/delete 支持 if_match；E12 YAML 损坏三类动作均拒绝且不写盘
+- `src/errors.ts` — 新错误码 FRONTMATTER_INVALID（E12）、KEY_NOT_FOUND
+- `src/server.ts` + `tests/server.test.ts` — 注册第 8 个工具，工具清单断言更新
+- `package.json` — 新增 js-yaml ^5（自带类型，@types 冗余已移除）
+- `README.md` — 工具表补 manage_frontmatter 行，read/create/edit/move 行补 etag/if_match 说明
+- `tests/tools.test.ts` — 新增 9 用例覆盖全部行为
+
+**验证方式**：
+- `npm run build` 成功；`npm test` 86 passed（smoke 1 + vault 15 + server 5 + tools 62 + links 3）
+
+**状态**：✅ 通过验证（待用户确认）
+
+**Git**：见下方 T016 commit
+
 ---
 
 ## 问题追踪

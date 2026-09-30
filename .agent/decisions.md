@@ -126,6 +126,25 @@ frontmatter 写坏是数据损坏级风险（E12），成熟库显著降低风�
 **影响**：
 manage_frontmatter / manage_tags 工具；package.json 依赖；E12 行为。
 
+## D007: frontmatter 实施细化——直接使用 js-yaml 而非 gray-matter — 2026-10-01
+
+**背景**：
+T016 实施时发现 gray-matter 的 stringify 无法保证正文字节级保真（E12 要求 set/delete 后正文逐字节不变），且定界符切分需按 Obsidian 语义自定义（无闭合定界符视为普通文本）。
+
+**选项**：
+| 选项 | 优点 | 缺点 |
+|------|------|------|
+| A: js-yaml 直接 load/dump + 自定义定界符切分 | 正文保真可控；解析/序列化两端同引擎一致；少一层包装依赖 | 切分逻辑自担（约 30 行，已测试覆盖） |
+| B: 维持 gray-matter | 与 D006 字面一致 | stringify 的定界符/换行行为不受控，正文件保真无保证 |
+
+**最终选择**：选项 A（js-yaml 是 gray-matter 的底层引擎，D006 的"成熟解析器"意图不变）
+
+**理由**：
+E12 的数据保真是硬约束，工具层需要完全控制文本重组；两端同用 js-yaml 保持一致性。
+
+**影响**：
+package.json 依赖为 js-yaml ^5（自带类型，无需 @types）；src/tools/frontmatter.ts 的 splitFrontmatter。
+
 ## D004: 搜索用同步遍历而非索引 — 2026-09-30
 
 **背景**：

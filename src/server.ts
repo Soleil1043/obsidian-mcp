@@ -4,6 +4,7 @@ import type { z } from "zod";
 import { VaultError } from "./errors.js";
 import { createNoteTool } from "./tools/create.js";
 import { editNoteTool } from "./tools/edit.js";
+import { manageFrontmatterTool } from "./tools/frontmatter.js";
 import { listNotesTool } from "./tools/list.js";
 import { deleteNoteTool, moveNoteTool } from "./tools/organize.js";
 import { readNoteTool } from "./tools/read.js";
@@ -33,6 +34,7 @@ const TOOLS: AnyTool[] = [
   editNoteTool,
   moveNoteTool,
   deleteNoteTool,
+  manageFrontmatterTool,
 ];
 
 export function createMcpServer(vault: Vault): McpServer {

@@ -6,6 +6,7 @@ import { afterEach, describe, expect, it } from "vitest";
 import { Vault } from "../src/vault";
 import { createNote } from "../src/tools/create";
 import { editNote } from "../src/tools/edit";
+import { manageFrontmatter } from "../src/tools/frontmatter";
 import { listNotes } from "../src/tools/list";
 import { moveNote, deleteNote } from "../src/tools/organize";
 import { readNote } from "../src/tools/read";
@@ -607,5 +608,148 @@ describe("etag 并发控制（F11/E10）", () => {
     const read = await readNote(vault, { path: "note.md" });
     await deleteNote(vault, { path: "note.md", if_match: read.etag });
     expect(existsSync(path.join(vault.root, "note.md"))).toBe(false);
+  });
+});
+
+describe("manage_frontmatter（F07/E12）", () => {
+  const FM_NOTE = "---\ntitle: Hello\nstatus: active\ncount: 3\ntags:\n  - a\n  - b\n---\n\n# 正文\n\n内容\n";
+
+  function writeFrontmatterNote(vault: Vault, raw: string): void {
+    writeFileSync(path.join(vault.root, "fm.md"), raw);
+  }
+
+  it("get：无 frontmatter 返回 null，有则返回完整对象", async () => {
+    const vault = makeFixtureVault();
+    expect(await manageFrontmatter(vault, { action: "get", path: "note.md" })).toEqual({
+      path: "note.md",
+      frontmatter: null,
+    });
+
+    writeFrontmatterNote(vault, FM_NOTE);
+    const result = await manageFrontmatter(vault, { action: "get", path: "fm.md" });
+    expect(result).toEqual({
+      path: "fm.md",
+      frontmatter: { title: "Hello", status: "active", count: 3, tags: ["a", "b"] },
+    });
+  });
+
+  it("get 指定 key：命中返回 found+value，未命中 found=false", async () => {
+    const vault = makeFixtureVault();
+    writeFrontmatterNote(vault, FM_NOTE);
+    expect(
+      await manageFrontmatter(vault, { action: "get", path: "fm.md", key: "title" }),
+    ).toEqual({ path: "fm.md", frontmatter: expect.anything(), found: true, value: "Hello" });
+    expect(
+      await manageFrontmatter(vault, { action: "get", path: "fm.md", key: "ghost" }),
+    ).toEqual({ path: "fm.md", frontmatter: expect.anything(), found: false, value: null });
+  });
+
+  it("set：写入新字段落盘正确，正文逐字节不变", async () => {
+    const vault = makeFixtureVault();
+    writeFrontmatterNote(vault, FM_NOTE);
+    const result = await manageFrontmatter(vault, {
+      action: "set",
+      path: "fm.md",
+      key: "priority",
+      value: 5,
+    });
+    expect(result.frontmatter).toMatchObject({ title: "Hello", priority: 5 });
+
+    const onDisk = readFileSync(path.join(vault.root, "fm.md"), "utf8");
+    expect(onDisk.endsWith(FM_NOTE.slice(FM_NOTE.indexOf("---\n\n# 正文")))).toBe(true);
+    expect(onDisk).toContain("priority: 5");
+  });
+
+  it("set：无 frontmatter 时自动创建，嵌套对象值正确序列化", async () => {
+    const vault = makeFixtureVault();
+    const result = await manageFrontmatter(vault, {
+      action: "set",
+      path: "note.md",
+      key: "meta",
+      value: { author: "me", roles: ["a", "b"] },
+    });
+    expect(result.frontmatter).toEqual({ meta: { author: "me", roles: ["a", "b"] } });
+    const onDisk = readFileSync(path.join(vault.root, "note.md"), "utf8");
+    expect(onDisk).toContain("meta:");
+    expect(onDisk).toContain("author: me");
+    expect(onDisk.endsWith("# hello\n")).toBe(true);
+  });
+
+  it("E12: YAML 损坏时 get/set/delete 均报错且文件不变", async () => {
+    const vault = makeFixtureVault();
+    const broken = "---\ntitle: [unclosed\n---\nbody\n";
+    writeFrontmatterNote(vault, broken);
+    for (const action of ["get", "set", "delete"] as const) {
+      await expectVaultError(
+        () => manageFrontmatter(vault, { action, path: "fm.md", key: "title", value: "x" }),
+        "FRONTMATTER_INVALID",
+      );
+    }
+    expect(readFileSync(path.join(vault.root, "fm.md"), "utf8")).toBe(broken);
+  });
+
+  it("delete：移除字段；删到空时整块 frontmatter 移除", async () => {
+    const vault = makeFixtureVault();
+    writeFrontmatterNote(vault, FM_NOTE);
+    await manageFrontmatter(vault, { action: "delete", path: "fm.md", key: "count" });
+    const partial = readFileSync(path.join(vault.root, "fm.md"), "utf8");
+    expect(partial).not.toContain("count");
+    expect(partial).toContain("title: Hello");
+
+    const onlyTitle = "---\ntitle: solo\n---\nbody here\n";
+    writeFrontmatterNote(vault, onlyTitle);
+    const result = await manageFrontmatter(vault, { action: "delete", path: "fm.md", key: "title" });
+    expect(result.frontmatter).toBeNull();
+    expect(readFileSync(path.join(vault.root, "fm.md"), "utf8")).toBe("body here\n");
+  });
+
+  it("delete 不存在的 key 报 KEY_NOT_FOUND", async () => {
+    const vault = makeFixtureVault();
+    writeFrontmatterNote(vault, FM_NOTE);
+    await expectVaultError(
+      () => manageFrontmatter(vault, { action: "delete", path: "fm.md", key: "ghost" }),
+      "KEY_NOT_FOUND",
+    );
+  });
+
+  it("E10: set/delete 过期 if_match 报 ETAG_MISMATCH 且文件不变，set 返回新 etag", async () => {
+    const vault = makeFixtureVault();
+    writeFrontmatterNote(vault, FM_NOTE);
+    await expectVaultError(
+      () =>
+        manageFrontmatter(vault, {
+          action: "set",
+          path: "fm.md",
+          key: "title",
+          value: "x",
+          if_match: computeEtag("stale"),
+        }),
+      "ETAG_MISMATCH",
+    );
+    expect(readFileSync(path.join(vault.root, "fm.md"), "utf8")).toBe(FM_NOTE);
+
+    const read = await readNote(vault, { path: "fm.md" });
+    const result = await manageFrontmatter(vault, {
+      action: "set",
+      path: "fm.md",
+      key: "title",
+      value: "Changed",
+      if_match: read.etag,
+    });
+    expect(result.etag).toBeDefined();
+    expect(readFileSync(path.join(vault.root, "fm.md"), "utf8")).toContain("title: Changed");
+  });
+
+  it("set 缺 value、delete 缺 key 报 INVALID_INPUT", async () => {
+    const vault = makeFixtureVault();
+    writeFrontmatterNote(vault, FM_NOTE);
+    await expectVaultError(
+      () => manageFrontmatter(vault, { action: "set", path: "fm.md", key: "k" }),
+      "INVALID_INPUT",
+    );
+    await expectVaultError(
+      () => manageFrontmatter(vault, { action: "delete", path: "fm.md" }),
+      "INVALID_INPUT",
+    );
   });
 });

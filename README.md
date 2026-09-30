@@ -5,20 +5,21 @@
 一个连接 Obsidian vault 的 MCP（Model Context Protocol）服务器：让 ZCode、Claude Code 等 AI harness 能浏览、搜索、编辑已有笔记，并把生成的内容作为新笔记写入 Obsidian。
 
 - 直接文件系统访问 vault，**无需 Obsidian 运行**
-- 7 个细粒度 MCP 工具，stdio transport
-- TypeScript strict 实现，内置防误删/防误改保护
+- 8 个细粒度 MCP 工具，stdio transport
+- TypeScript strict 实现，内置防误删/防误改保护与 etag 并发控制
 
 ## 工具清单
 
 | 工具 | 功能 | 关键参数 |
 |------|------|---------|
 | `list_notes` | 列出目录下的笔记与文件夹（跳过 `.obsidian/`、`.trash/` 等隐藏条目与附件） | `folder?` |
-| `read_note` | 读取笔记全文（UTF-8 原文，含 frontmatter）+ 大小/修改时间 | `path` |
+| `read_note` | 读取笔记全文（UTF-8 原文，含 frontmatter）+ 大小/修改时间/内容 etag | `path` |
 | `search_notes` | 关键词全文搜索（纯文本子串，非正则），返回文件/行号/行内容/文件命中总数 | `query`、`folder?`、`case_sensitive?`、`max_results?` |
-| `create_note` | 创建笔记，父目录自动创建 | `path`、`content?`、`overwrite?` |
-| `edit_note` | 整体覆盖 / 末尾追加 / 精准替换（`overwrite` / `append` / `replace` 三模式） | `path`、`mode`、`content`、`old_string?`、`replace_all?` |
-| `move_note` | 重命名 / 移动笔记 | `from`、`to` |
-| `delete_note` | 删除笔记（默认进 vault 根 `.trash/`） | `path`、`permanent?` |
+| `create_note` | 创建笔记，父目录自动创建 | `path`、`content?`、`overwrite?`、`if_match?` |
+| `edit_note` | 整体覆盖 / 末尾追加 / 精准替换（`overwrite` / `append` / `replace` 三模式） | `path`、`mode`、`content`、`old_string?`、`replace_all?`、`if_match?` |
+| `move_note` | 重命名 / 移动笔记，自动更新指向它的 `[[wikilink]]` 与 Markdown 相对链接 | `from`、`to`、`if_match?` |
+| `delete_note` | 删除笔记（默认进 vault 根 `.trash/`） | `path`、`permanent?`、`if_match?` |
+| `manage_frontmatter` | YAML frontmatter 字段管理：get / set / delete（自动创建、删空移除整块、YAML 损坏拒绝写入） | `path`、`action`、`key?`、`value?`、`if_match?` |
 
 所有路径均为 **vault 内相对路径**（POSIX 风格，如 `journal/2026-09-30.md`），必须以 `.md` 结尾。
 
