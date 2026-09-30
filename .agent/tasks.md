@@ -14,7 +14,7 @@
 
 <!-- 核心工具层（读） -->
 - [x] T003: list_notes 工具 | 依赖: T002 | 涉及文件: src/tools/list.ts, tests/tools.test.ts | 验收: `npm test`——fixture vault 返回 `.md` 文件与子文件夹；跳过 `.obsidian/`、`.trash/`；空目录返回 `[]` | 覆盖: F01
-- [ ] T004: read_note 工具 | 依赖: T002 | 涉及文件: src/tools/read.ts, tests/tools.test.ts | 验收: `npm test`——返回内容与磁盘逐字一致（含 frontmatter）；文件不存在时报 not found 且不创建文件（E02） | 覆盖: F02, E02
+- [x] T004: read_note 工具 | 依赖: T002 | 涉及文件: src/tools/read.ts, tests/tools.test.ts | 验收: `npm test`——返回内容与磁盘逐字一致（含 frontmatter）；文件不存在时报 not found 且不创建文件（E02） | 覆盖: F02, E02
 - [ ] T005: search_notes 工具 | 依赖: T002 | 涉及文件: src/tools/search.ts, tests/tools.test.ts | 验收: `npm test`——返回 path/line_number/line_text/match_count；默认大小写不敏感；`folder` 限定生效；无匹配返回空列表（E09）；`max_results` 截断生效 | 覆盖: F03, E09
 
 <!-- 核心工具层（写） -->

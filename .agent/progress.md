@@ -80,6 +80,23 @@
 
 **Git**：见下方 T003 commit
 
+### [T004] read_note 工具 — 2026-09-30
+
+**操作**：
+- 新增 read_note 工具（F02），返回 content/size_bytes/modified_at；errors.ts 补 NOT_A_FILE 错误码
+
+**涉及文件**：
+- `src/tools/read.ts` — readNote 处理器 + zod schema + readNoteTool 定义；UTF-8 原文直读不改动（含 frontmatter 与 BOM）；ENOENT→NOT_FOUND（E02）；目录冒名（以 .md 结尾的目录）→NOT_A_FILE
+- `src/errors.ts` — 错误码新增 NOT_A_FILE
+- `tests/tools.test.ts` — 新增 6 个用例：逐字一致+元数据、子目录归一化路径、win32 反斜杠、E02 不存在且不创建、E06 非 .md、NOT_A_FILE
+
+**验证方式**：
+- `npm run build` 成功；`npm test` 29 passed（smoke 1 + vault 15 + tools 13）
+
+**状态**：✅ 通过验证（待用户确认）
+
+**Git**：见下方 T004 commit
+
 ---
 
 ## 问题追踪

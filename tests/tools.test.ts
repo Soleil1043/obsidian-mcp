@@ -1,4 +1,4 @@
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 
@@ -7,6 +7,7 @@ import { afterEach, describe, expect, it } from "vitest";
 import { VaultError, type VaultErrorCode } from "../src/errors";
 import { Vault } from "../src/vault";
 import { listNotes } from "../src/tools/list";
+import { readNote } from "../src/tools/read";
 
 const tempRoots: string[] = [];
 
@@ -104,6 +105,58 @@ describe("list_notes（F01）", () => {
     await expectVaultError(
       () => listNotes(vault, { folder: "../outside" }),
       "PATH_ESCAPES_VAULT",
+    );
+  });
+});
+
+describe("read_note（F02）", () => {
+  it("返回内容与磁盘逐字一致（含 frontmatter）及大小、修改时间", async () => {
+    const vault = makeFixtureVault();
+    const raw = "---\ntitle: hello\n---\n\n# hi\n正文\n";
+    writeFileSync(path.join(vault.root, "frontmatter.md"), raw);
+    const note = await readNote(vault, { path: "frontmatter.md" });
+    expect(note.path).toBe("frontmatter.md");
+    expect(note.content).toBe(raw);
+    expect(note.size_bytes).toBe(Buffer.byteLength(raw, "utf8"));
+    expect(() => new Date(note.modified_at).toISOString()).not.toThrow();
+  });
+
+  it("子目录笔记返回归一化 POSIX 路径", async () => {
+    const vault = makeFixtureVault();
+    const note = await readNote(vault, { path: "journal/2026-09-30.md" });
+    expect(note.path).toBe("journal/2026-09-30.md");
+    expect(note.content).toBe("c");
+  });
+
+  it.runIf(process.platform === "win32")(
+    "Windows 反斜杠路径可读，返回 POSIX 路径",
+    async () => {
+      const vault = makeFixtureVault();
+      const note = await readNote(vault, { path: "journal\\2026-09-30.md" });
+      expect(note.path).toBe("journal/2026-09-30.md");
+    },
+  );
+
+  it("E02: 笔记不存在时报 NOT_FOUND，且不创建文件", async () => {
+    const vault = makeFixtureVault();
+    await expectVaultError(
+      () => readNote(vault, { path: "ghost.md" }),
+      "NOT_FOUND",
+    );
+    expect(existsSync(path.join(vault.root, "ghost.md"))).toBe(false);
+  });
+
+  it("E06: 非 .md 目标被拒绝", async () => {
+    const vault = makeFixtureVault();
+    await expectVaultError(() => readNote(vault, { path: "image.png" }), "NOT_MARKDOWN");
+  });
+
+  it("目标是以 .md 结尾的目录时报 NOT_A_FILE", async () => {
+    const vault = makeFixtureVault();
+    mkdirSync(path.join(vault.root, "folder.md"));
+    await expectVaultError(
+      () => readNote(vault, { path: "folder.md" }),
+      "NOT_A_FILE",
     );
   });
 });

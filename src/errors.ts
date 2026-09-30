@@ -11,7 +11,8 @@ export type VaultErrorCode =
   | "PATH_ESCAPES_VAULT" // E05: `..` 越出 vault 根
   | "NOT_MARKDOWN" // E06: 目标不是 .md 文件
   | "NOT_FOUND" // E02: vault 内目标（笔记/目录）不存在
-  | "NOT_A_DIRECTORY"; // 目标存在但不是目录
+  | "NOT_A_DIRECTORY" // 目标存在但不是目录
+  | "NOT_A_FILE"; // 目标存在但是目录而非文件
 
 export class VaultError extends Error {
   readonly code: VaultErrorCode;
