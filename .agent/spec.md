@@ -44,6 +44,7 @@ AI harness（ZCode、Claude Code 等）缺少与 Obsidian vault 之间的通道�
 - tags/frontmatter 专门管理（标签索引、按标签过滤查询）：frontmatter 属于文本内容，可随 F05 编辑工具自然修改，但不提供专门的元数据 API。【假设】
 - Obsidian Local REST API / URI 接入：接入方式已定为直接文件系统（见 decisions.md D001）。
 - Docker 镜像：stdio 传输下容器化价值低，暂不做。【v1.2 新增】
+- npm 发布：不做（用户决定，v1.3；分发走 GitHub 克隆构建）。
 - Canvas/画布与二进制附件、第三方插件集成、同步/发布到网络等既有非目标维持不变。
 
 ## 5. 边界与异常
@@ -93,3 +94,4 @@ AI harness（ZCode、Claude Code 等）缺少与 Obsidian vault 之间的通道�
 | v1.0 | 2026-09-30 | 初版确认 | - | ✅ |
 | v1.1 | 2026-09-30 | 范围扩展：新增 GitHub Actions CI 与 GitHub 公开仓库托管（交付管道，不涉及产品功能）；注：非目标中的「同步/发布到网络」指 Obsidian 内容发布，与代码托管无关 | T012/T013、README、package.json | ✅ |
 | v1.2 | 2026-09-30 | 范围扩展（竞品对标驱动）：并发控制 F11、链接维护 F12、frontmatter/tags/目录/搜索增强 F07-F10、npm 分发 F13；新增 E10-E13；非目标新增「Docker 暂不做」 | T014-T021、plan 第 8 节、D005/D006 | ✅ |
+| v1.3 | 2026-10-01 | 范围收缩：取消 F13（npm 发布与 Release 自动化，用户决定不做 npm 分发；GitHub Release 如需可走变更流程恢复）；T020/T021 随之取消；非目标新增「不做 npm 发布」 | T020/T021 | ✅ |

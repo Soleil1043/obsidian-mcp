@@ -384,6 +384,31 @@
 
 **Git**：见下方 T019 commit
 
+### [v1.2/v1.3] 最终验证总结 — 2026-10-01
+
+**变更**：v1.3 取消 F13/T020/T021（用户决定不做 npm 发布；英文 README 随之取消），非目标新增「不做 npm 发布」。
+
+**测试**：干净重建后全量 104 passed（smoke 1 + vault 15 + server 5 + tools 80 + links 3），零报错。
+
+**v1.2 功能逐条对照**：
+| Fxx | 功能 | 实现任务 | 验证证据 |
+|-----|------|---------|---------|
+| F07 | frontmatter 管理 | T016 manage_frontmatter | get/set/delete 落盘正确；E12 YAML 损坏拒绝且文件不变；正文逐字节保真 |
+| F08 | tags 管理 | T017 manage_tags | list 双来源去重统计；add/remove 精确整词，保留嵌套子标签与代码块 |
+| F09 | 目录创建 | T018 create_folder | 父级自动创建；已存在/隐藏目录/越界拒绝 |
+| F10 | 搜索增强 | T019 search v2 | 游标翻页不重不漏；sort 三种生效；tag 过滤正确；E13 非法游标报错 |
+| F11 | 并发控制 | T014 etag | read 返回 SHA-256 etag；4 写工具 if_match 校验先于写盘（E10） |
+| F12 | 链接维护 | T015 move v2 | wikilink/md 链接双向维护；锚点/别名保留；歧义报告（E11） |
+| F13 | npm 分发 | — | v1.3 取消（用户决定） |
+
+**既有功能回归**：F01-F06、E01-E09 的 95 个既有用例全部保持通过（v1.2 改造未破坏 MVP 行为）。
+
+**端到端**：SDK Client 按序连接真实 stdio 进程，10 个工具注册确认；完整生命周期 create → frontmatter set/get → tags list/add → search(tag 过滤) → create_folder → move → delete→.trash 全部 ok。
+
+**范围外说明**：CI/CD 保留（GitHub Actions 矩阵全绿）；npm 发布与英文 README 已取消（v1.3）。
+
+**状态**：✅ v1.2/v1.3 交付完成，项目当前共 10 个 MCP 工具、104 个测试
+
 ---
 
 ## 问题追踪
