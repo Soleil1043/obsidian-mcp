@@ -44,6 +44,24 @@
 
 **Git**：见下方 T001 commit
 
+### [T002] Vault 核心与路径安全 — 2026-09-30
+
+**操作**：
+- 新增统一错误类型与 Vault 核心类，含 15 个单元测试；修复 TS7 下 @types/node 未自动引入的问题（tsconfig 显式 types: ["node"]）
+
+**涉及文件**：
+- `src/errors.ts` — VaultError（错误码：E01 前置三类、INVALID_PATH、E05 两类、E06），供工具层映射为 MCP isError result
+- `src/vault.ts` — Vault.fromEnv（OBSIDIAN_VAULT_PATH 解析、~ 展开、E01 校验）、resolvePath（POSIX 相对路径归一化、拒绝 `..`/绝对路径/空字节、根内兜底校验）、resolveMarkdownPath（仅 .md，大小写不敏感）
+- `tests/vault.test.ts` — 15 个用例覆盖 E05/E06 与 fromEnv 各分支；临时目录 fixture，跨平台条件用例（win32 反斜杠）
+- `tsconfig.json` — 补 "types": ["node"]
+
+**验证方式**：
+- `npm run build` 成功；`npm test` 16 passed（含 smoke 1 个）
+
+**状态**：✅ 通过验证（待用户确认）
+
+**Git**：见下方 T002 commit
+
 ---
 
 ## 问题追踪
