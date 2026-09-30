@@ -97,6 +97,23 @@
 
 **Git**：见下方 T004 commit
 
+### [T005] search_notes 工具 — 2026-09-30
+
+**操作**：
+- 新增 search_notes 工具（F03），同步遍历 + 逐行匹配（决策 D004）；errors.ts 补 INVALID_INPUT 错误码
+
+**涉及文件**：
+- `src/tools/search.ts` — searchNotes 处理器：纯文本子串匹配（非正则）、默认大小写不敏感、folder 限定、max_results 默认 100 上限 1000、行级命中 + 文件级 match_count、文件粒度截断；递归收集 .md（withFileTypes + parentPath），跳过点开头隐藏目录；ENOENT 文件竞态静默跳过
+- `src/errors.ts` — 错误码新增 INVALID_INPUT（空关键词、非正整数 max_results）
+- `tests/tools.test.ts` — 新增 7 个用例（独立 search fixture）：默认匹配全集、大小写敏感、folder 限定、E09 空列表、截断、INVALID_INPUT、目录类错误
+
+**验证方式**：
+- `npm run build` 成功；`npm test` 36 passed（smoke 1 + vault 15 + tools 20）
+
+**状态**：✅ 通过验证（待用户确认）
+
+**Git**：见下方 T005 commit
+
 ---
 
 ## 问题追踪

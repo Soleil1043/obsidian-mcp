@@ -8,6 +8,7 @@ import { VaultError, type VaultErrorCode } from "../src/errors";
 import { Vault } from "../src/vault";
 import { listNotes } from "../src/tools/list";
 import { readNote } from "../src/tools/read";
+import { searchNotes } from "../src/tools/search";
 
 const tempRoots: string[] = [];
 
@@ -157,6 +158,84 @@ describe("read_note（F02）", () => {
     await expectVaultError(
       () => readNote(vault, { path: "folder.md" }),
       "NOT_A_FILE",
+    );
+  });
+});
+
+/** 搜索专用 fixture：alpha.md 两处 world（一行大小写混合），sub/beta.md 两处全大写/小写。 */
+function makeSearchVault(): Vault {
+  const root = mkdtempSync(path.join(tmpdir(), "obsidian-mcp-search-"));
+  tempRoots.push(root);
+  writeFileSync(path.join(root, "alpha.md"), "Hello World\nworld peace\nbye\n");
+  mkdirSync(path.join(root, "sub"));
+  writeFileSync(path.join(root, "sub", "beta.md"), "WORLD tour\nnothing\nhello again world\n");
+  mkdirSync(path.join(root, "hidden"));
+  writeFileSync(path.join(root, "hidden", ".secret.md"), "world\n");
+  writeFileSync(path.join(root, "image.png"), "world");
+  return new Vault(root);
+}
+
+describe("search_notes（F03）", () => {
+  it("默认大小写不敏感，按文件分组返回行命中与文件总次数，跳过隐藏目录与附件", async () => {
+    const vault = makeSearchVault();
+    const hits = await searchNotes(vault, { query: "world", max_results: 1000 });
+    expect(hits).toEqual([
+      { path: "alpha.md", line_number: 1, line_text: "Hello World", match_count: 2 },
+      { path: "alpha.md", line_number: 2, line_text: "world peace", match_count: 2 },
+      { path: "sub/beta.md", line_number: 1, line_text: "WORLD tour", match_count: 2 },
+      { path: "sub/beta.md", line_number: 3, line_text: "hello again world", match_count: 2 },
+    ]);
+  });
+
+  it("case_sensitive=true 只匹配精确大小写", async () => {
+    const vault = makeSearchVault();
+    const hits = await searchNotes(vault, {
+      query: "world",
+      case_sensitive: true,
+      max_results: 1000,
+    });
+    expect(hits.map((hit) => `${hit.path}:${hit.line_number}`)).toEqual([
+      "alpha.md:2",
+      "sub/beta.md:3",
+    ]);
+  });
+
+  it("folder 限定只搜索该子目录", async () => {
+    const vault = makeSearchVault();
+    const hits = await searchNotes(vault, { query: "world", folder: "sub", max_results: 1000 });
+    expect(hits.map((hit) => hit.path)).toEqual(["sub/beta.md", "sub/beta.md"]);
+  });
+
+  it("E09: 无匹配返回空列表", async () => {
+    const vault = makeSearchVault();
+    expect(await searchNotes(vault, { query: "zebra" })).toEqual([]);
+  });
+
+  it("max_results 截断命中行数", async () => {
+    const vault = makeSearchVault();
+    const hits = await searchNotes(vault, { query: "world", max_results: 2 });
+    expect(hits).toHaveLength(2);
+    expect(hits.every((hit) => hit.path === "alpha.md")).toBe(true);
+  });
+
+  it("空关键词与非法 max_results 报 INVALID_INPUT", async () => {
+    const vault = makeSearchVault();
+    await expectVaultError(() => searchNotes(vault, { query: "" }), "INVALID_INPUT");
+    await expectVaultError(
+      () => searchNotes(vault, { query: "world", max_results: 0 }),
+      "INVALID_INPUT",
+    );
+  });
+
+  it("目录不存在或目标是文件时报对应错误", async () => {
+    const vault = makeSearchVault();
+    await expectVaultError(
+      () => searchNotes(vault, { query: "world", folder: "no-such" }),
+      "NOT_FOUND",
+    );
+    await expectVaultError(
+      () => searchNotes(vault, { query: "world", folder: "alpha.md" }),
+      "NOT_A_DIRECTORY",
     );
   });
 });

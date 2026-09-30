@@ -12,7 +12,8 @@ export type VaultErrorCode =
   | "NOT_MARKDOWN" // E06: 目标不是 .md 文件
   | "NOT_FOUND" // E02: vault 内目标（笔记/目录）不存在
   | "NOT_A_DIRECTORY" // 目标存在但不是目录
-  | "NOT_A_FILE"; // 目标存在但是目录而非文件
+  | "NOT_A_FILE" // 目标存在但是目录而非文件
+  | "INVALID_INPUT"; // 工具参数非法（空关键词、越界数值等）
 
 export class VaultError extends Error {
   readonly code: VaultErrorCode;
