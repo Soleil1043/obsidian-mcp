@@ -7,6 +7,7 @@ import { afterEach, describe, expect, it } from "vitest";
 import { VaultError, type VaultErrorCode } from "../src/errors";
 import { Vault } from "../src/vault";
 import { createNote } from "../src/tools/create";
+import { editNote } from "../src/tools/edit";
 import { listNotes } from "../src/tools/list";
 import { readNote } from "../src/tools/read";
 import { searchNotes } from "../src/tools/search";
@@ -302,4 +303,114 @@ describe("create_note（F04）", () => {
       expect(existsSync(path.join(vault.root, "sub", "new.md"))).toBe(true);
     },
   );
+});
+
+describe("edit_note（F05）", () => {
+  it("overwrite 模式整体覆盖", async () => {
+    const vault = makeFixtureVault();
+    const result = await editNote(vault, {
+      path: "note.md",
+      mode: "overwrite",
+      content: "new body",
+    });
+    expect(result.mode).toBe("overwrite");
+    expect(readFileSync(path.join(vault.root, "note.md"), "utf8")).toBe("new body");
+  });
+
+  it("append 模式在文末追加", async () => {
+    const vault = makeFixtureVault();
+    await editNote(vault, { path: "note.md", mode: "append", content: "more\n" });
+    expect(readFileSync(path.join(vault.root, "note.md"), "utf8")).toBe("# hello\nmore\n");
+  });
+
+  it("replace 模式单处字面替换", async () => {
+    const vault = makeFixtureVault();
+    await editNote(vault, {
+      path: "note.md",
+      mode: "replace",
+      old_string: "hello",
+      content: "world",
+    });
+    expect(readFileSync(path.join(vault.root, "note.md"), "utf8")).toBe("# world\n");
+  });
+
+  it("replace 替换文本含 $ 符号时按字面处理", async () => {
+    const vault = makeFixtureVault();
+    await editNote(vault, {
+      path: "note.md",
+      mode: "replace",
+      old_string: "hello",
+      content: "$& and $1",
+    });
+    expect(readFileSync(path.join(vault.root, "note.md"), "utf8")).toBe("# $& and $1\n");
+  });
+
+  it("E04: replace 未找到时报错且文件不变", async () => {
+    const vault = makeFixtureVault();
+    await expectVaultError(
+      () => editNote(vault, {
+        path: "note.md",
+        mode: "replace",
+        old_string: "ghost",
+        content: "x",
+      }),
+      "REPLACE_NOT_FOUND",
+    );
+    expect(readFileSync(path.join(vault.root, "note.md"), "utf8")).toBe("# hello\n");
+  });
+
+  it("E04: replace 多处匹配时报错且文件不变，replace_all=true 全部替换", async () => {
+    const vault = makeFixtureVault();
+    writeFileSync(path.join(vault.root, "dup.md"), "aXbXc");
+    await expectVaultError(
+      () => editNote(vault, {
+        path: "dup.md",
+        mode: "replace",
+        old_string: "X",
+        content: "-",
+      }),
+      "REPLACE_AMBIGUOUS",
+    );
+    expect(readFileSync(path.join(vault.root, "dup.md"), "utf8")).toBe("aXbXc");
+    await editNote(vault, {
+      path: "dup.md",
+      mode: "replace",
+      old_string: "X",
+      content: "-",
+      replace_all: true,
+    });
+    expect(readFileSync(path.join(vault.root, "dup.md"), "utf8")).toBe("a-b-c");
+  });
+
+  it("replace 用空串删除片段", async () => {
+    const vault = makeFixtureVault();
+    await editNote(vault, {
+      path: "note.md",
+      mode: "replace",
+      old_string: "hello",
+      content: "",
+    });
+    expect(readFileSync(path.join(vault.root, "note.md"), "utf8")).toBe("# \n");
+  });
+
+  it("replace 缺少或空 old_string 报 INVALID_INPUT", async () => {
+    const vault = makeFixtureVault();
+    await expectVaultError(
+      () => editNote(vault, { path: "note.md", mode: "replace", content: "x" }),
+      "INVALID_INPUT",
+    );
+    await expectVaultError(
+      () => editNote(vault, { path: "note.md", mode: "replace", old_string: "", content: "x" }),
+      "INVALID_INPUT",
+    );
+  });
+
+  it("E02: 编辑不存在的笔记报 NOT_FOUND 且不创建文件", async () => {
+    const vault = makeFixtureVault();
+    await expectVaultError(
+      () => editNote(vault, { path: "ghost.md", mode: "overwrite", content: "x" }),
+      "NOT_FOUND",
+    );
+    expect(existsSync(path.join(vault.root, "ghost.md"))).toBe(false);
+  });
 });

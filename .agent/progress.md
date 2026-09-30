@@ -131,6 +131,23 @@
 
 **Git**：见下方 T006 commit
 
+### [T007] edit_note 工具 — 2026-09-30
+
+**操作**：
+- 新增 edit_note 工具（F05），overwrite/append/replace 三模式合一（决策 D002）；errors.ts 补 REPLACE_NOT_FOUND、REPLACE_AMBIGUOUS 错误码
+
+**涉及文件**：
+- `src/tools/edit.ts` — editNote 处理器：stat/read → 按 mode 计算 next → 内容有变化才写回（避免无谓 mtime 变动）。replace 用 split/join 字面替换（规避 String.replace 的 "$&" 替换模式解析）；未找到 → REPLACE_NOT_FOUND、多处且未 replace_all → REPLACE_AMBIGUOUS，报错均发生在写盘前，文件保持不变（E04）；缺/空 old_string → INVALID_INPUT
+- `src/errors.ts` — 错误码新增 REPLACE_NOT_FOUND、REPLACE_AMBIGUOUS（E04）
+- `tests/tools.test.ts` — 新增 9 个用例：三模式基础行为、$ 符号字面替换、E04 未找到/多处（断言文件不变）、replace_all、空串删除片段、INVALID_INPUT、E02 不存在不创建
+
+**验证方式**：
+- `npm run build` 成功；`npm test` 51 passed（smoke 1 + vault 15 + tools 35）
+
+**状态**：✅ 通过验证（待用户确认）
+
+**Git**：见下方 T007 commit
+
 ---
 
 ## 问题追踪

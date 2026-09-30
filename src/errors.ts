@@ -14,7 +14,9 @@ export type VaultErrorCode =
   | "NOT_A_DIRECTORY" // 目标存在但不是目录
   | "NOT_A_FILE" // 目标存在但是目录而非文件
   | "INVALID_INPUT" // 工具参数非法（空关键词、越界数值等）
-  | "ALREADY_EXISTS"; // E03/E08: 目标已存在
+  | "ALREADY_EXISTS" // E03/E08: 目标已存在
+  | "REPLACE_NOT_FOUND" // E04: 待替换片段未找到
+  | "REPLACE_AMBIGUOUS"; // E04: 待替换片段匹配多处
 
 export class VaultError extends Error {
   readonly code: VaultErrorCode;

@@ -19,7 +19,7 @@
 
 <!-- 核心工具层（写） -->
 - [x] T006: create_note 工具 | 依赖: T002 | 涉及文件: src/tools/create.ts, tests/tools.test.ts | 验收: `npm test`——创建成功且父目录自动创建；已存在时报错（E03）；`overwrite=true` 覆盖成功 | 覆盖: F04, E03
-- [ ] T007: edit_note 工具 | 依赖: T002 | 涉及文件: src/tools/edit.ts, tests/tools.test.ts | 验收: `npm test`——overwrite/append/replace 三模式行为正确；replace 未找到或多处匹配时报错且文件不变（E04）；`replace_all=true` 全部替换 | 覆盖: F05, E04
+- [x] T007: edit_note 工具 | 依赖: T002 | 涉及文件: src/tools/edit.ts, tests/tools.test.ts | 验收: `npm test`——overwrite/append/replace 三模式行为正确；replace 未找到或多处匹配时报错且文件不变（E04）；`replace_all=true` 全部替换 | 覆盖: F05, E04
 - [ ] T008: move_note 工具 | 依赖: T002 | 涉及文件: src/tools/organize.ts, tests/tools.test.ts | 验收: `npm test`——重命名/移动后旧路径不存在、新路径内容一致；目标已存在时报错且原文件保持原位（E08） | 覆盖: F06, E08
 - [ ] T009: delete_note 工具 | 依赖: T002 | 涉及文件: src/tools/organize.ts, tests/tools.test.ts | 验收: `npm test`——默认移入 vault 根 `.trash/`（同名自动加后缀）；`permanent=true` 永久删除 | 覆盖: F06, E07
 
