@@ -3,7 +3,7 @@
 > Phase 1 产出。Agent 基于 PRD/用户描述填充本文件，用户确认后进入 Phase 2。
 > 状态标记：✅ 已确认 | 🔄 待确认 | ❌ 需修改
 
-**状态**：✅ 已确认
+**状态**：✅ 已确认（v1.2）
 
 ---
 
@@ -28,6 +28,13 @@ AI harness（ZCode、Claude Code 等）缺少与 Obsidian vault 之间的通道�
 | F04 | 创建笔记 | 在指定路径创建新笔记，可携带初始内容 | 调用创建工具后，目标路径存在新文件且内容一致；重复路径默认报错 |
 | F05 | 编辑笔记 | 对已有笔记整体覆盖、末尾追加、或精准替换文本片段 | 调用后文件按预期变化；替换片段未命中或多处匹配时报错且文件不变 |
 | F06 | 整理笔记 | 重命名、移动、删除笔记 | 重命名/移动后原路径不存在、新路径存在；删除后文件出现在 vault 根 `.trash/` 下而非永久丢失 |
+| F07 | frontmatter 管理 | 读取/设置/删除笔记的 YAML frontmatter 字段 | 对笔记调用后字段读写结果与文件一致；frontmatter 缺失时 set 自动创建 |
+| F08 | tags 管理 | 列出 vault 全部标签；为笔记添加/移除标签（frontmatter tags 与行内 `#tag`） | 列出结果覆盖两种来源；添加/移除后标签相应增减，正文其余内容不变 |
+| F09 | 目录创建 | 在 vault 内创建文件夹 | 父级不存在自动创建；目录已存在时报错 |
+| F10 | 搜索增强 | search_notes 支持游标分页、结果排序（路径/修改时间/匹配数）、按标签过滤 | 游标可翻完全部结果；排序参数生效；标签过滤只返回含该标签的笔记 |
+| F11 | 并发控制 | 读取返回 etag（内容 SHA-256）；写操作支持 `if_match` 乐观锁 | 提供 `if_match` 且与当前内容不符时报错且文件不变；未提供时行为与现状一致 |
+| F12 | 链接维护 | move_note 自动更新指向该笔记的 `[[wikilink]]` 与 Markdown 相对链接 | 移动后 vault 内引用指向新路径且可达；无法唯一解析的歧义链接保持原样并在返回中报告 |
+| F13 | npm 分发 | 以 scoped 包名发布 npm，GitHub Release 自动化 | 任何人可 `npx @soleil1043/obsidian-mcp` 运行；tag push 自动生成 Release |
 
 ## 4. 非目标（明确不做什么）
 
@@ -36,6 +43,8 @@ AI harness（ZCode、Claude Code 等）缺少与 Obsidian vault 之间的通道�
 - 同步/发布到网络（Obsidian Publish、多端同步等）：与本地文件管理定位无关，默认排除。【假设】
 - tags/frontmatter 专门管理（标签索引、按标签过滤查询）：frontmatter 属于文本内容，可随 F05 编辑工具自然修改，但不提供专门的元数据 API。【假设】
 - Obsidian Local REST API / URI 接入：接入方式已定为直接文件系统（见 decisions.md D001）。
+- Docker 镜像：stdio 传输下容器化价值低，暂不做。【v1.2 新增】
+- Canvas/画布与二进制附件、第三方插件集成、同步/发布到网络等既有非目标维持不变。
 
 ## 5. 边界与异常
 
@@ -52,6 +61,10 @@ AI harness（ZCode、Claude Code 等）缺少与 Obsidian vault 之间的通道�
 | E07 | F06 | 删除笔记 | 默认移入 vault 根 `.trash/`（Obsidian 原生兼容），提供 `permanent` 参数才永久删除 |
 | E08 | F06 | 重命名/移动的目标位置已存在文件 | 报错且原文件保持原位不动 |
 | E09 | F03 | 搜索无任何匹配 | 返回空列表，不视为错误 |
+| E10 | F11 | 写操作提供 `if_match` 但当前 etag 不符 | 返回 etag_mismatch 错误，文件不变（乐观锁生效） |
+| E11 | F12 | 链接歧义（多个同名笔记均可被 `[[name]]` 命中） | 不修改歧义链接，在返回中列出歧义项 |
+| E12 | F07 | frontmatter YAML 损坏/非法 | 返回错误，frontmatter 与正文均不变 |
+| E13 | F10 | 非法或过期分页游标 | 返回 INVALID_INPUT，提示从首页重新开始 |
 
 ## 6. 技术约束
 
@@ -65,9 +78,11 @@ AI harness（ZCode、Claude Code 等）缺少与 Obsidian vault 之间的通道�
 ## 7. 假设与依赖
 
 - 假设：用户已有本地 Obsidian vault，并能提供其绝对路径用于配置。
-- 假设：「同步/发布」与「tags 专门管理」默认排除（访谈未逐一确认，记录于此，可随时修订）。
+- 假设：「同步/发布」与「tags 专门管理」默认排除（访谈未逐一确认，记录于此，可随时修订）。注：v1.2 已将 tags/frontmatter 纳入范围，此条对 tags 失效。
+- 假设：npm 采用 scoped 名 `@soleil1043/obsidian-mcp`（原名 `obsidian-mcp` 已被第三方 StevenStavrakis/obsidian-mcp 占用）。
+- 假设：「生态验证」（star/用户锤打）非代码任务，靠发布与长期使用积累；对应动作仅 T020（发布管道）与 T021（英文文档）。
 - 依赖：MCP 客户端（ZCode / Claude Code 等）支持 stdio MCP server 配置。
-- 依赖：`@modelcontextprotocol/sdk` 官方 TypeScript SDK。
+- 依赖：`@modelcontextprotocol/sdk` 官方 TypeScript SDK；`gray-matter`（frontmatter 解析，见 D006）。
 
 ## 8. 变更记录
 
@@ -77,3 +92,4 @@ AI harness（ZCode、Claude Code 等）缺少与 Obsidian vault 之间的通道�
 |------|------|---------|---------------------|------|
 | v1.0 | 2026-09-30 | 初版确认 | - | ✅ |
 | v1.1 | 2026-09-30 | 范围扩展：新增 GitHub Actions CI 与 GitHub 公开仓库托管（交付管道，不涉及产品功能）；注：非目标中的「同步/发布到网络」指 Obsidian 内容发布，与代码托管无关 | T012/T013、README、package.json | ✅ |
+| v1.2 | 2026-09-30 | 范围扩展（竞品对标驱动）：并发控制 F11、链接维护 F12、frontmatter/tags/目录/搜索增强 F07-F10、npm 分发 F13；新增 E10-E13；非目标新增「Docker 暂不做」 | T014-T021、plan 第 8 节、D005/D006 | ✅ |

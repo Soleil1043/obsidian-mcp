@@ -101,6 +101,7 @@ obsidian-mcp/
 |------|------|------|
 | @modelcontextprotocol/sdk | ^1.x | MCP server 框架、stdio transport |
 | zod | ^3.x | 工具入参 schema 声明与校验 |
+| gray-matter | ^4.x | frontmatter YAML 解析与序列化（v1.2 增补，见 D006） |
 | typescript（dev） | ^5.x | 编译 |
 | @types/node（dev） | ^20 | Node 类型 |
 | vitest（dev） | ^2.x | 测试框架 |
@@ -117,3 +118,23 @@ obsidian-mcp/
 
 - **CI**：GitHub Actions（`.github/workflows/ci.yml`），矩阵 `ubuntu-latest`/`windows-latest` × Node 20/24——windows 矩阵位用于守护本项目声明的 Windows 路径兼容；步骤 `npm ci → npm run build → npm test`。
 - **托管**：公开仓库 `Soleil1043/obsidian-mcp`（gh CLI 创建并推送）；补 MIT LICENSE 文件与 package.json repository 元数据；README 加 CI 徽章与克隆指引。npm 发布暂不做。
+
+## 8. v1.2 路线图（竞品对标增补）
+
+> 优先级：正确性优先——F11 etag 并发控制 → F12 链接维护 → F07/F08 frontmatter/tags → F09/F10 目录/搜索 → F13 分发 → 英文文档。
+
+- **etag 设计（F11）**：`read_note` 返回 `etag`（内容 SHA-256，64 位 hex）；`edit_note`、`create_note(overwrite=true)`、`move_note`、`delete_note` 新增可选 `if_match` 参数——提供且与当前内容不符时抛 `ETAG_MISMATCH`（新错误码），写入前校验，文件不变；未提供时行为完全不变。
+- **链接解析（F12）**：新增 `src/links.ts`，解析 `[[path]]`、`[[path|alias]]`、`[[path#heading]]`、`[[path#^block]]` 与 `[text](relative.md)`；move 前建立 vault 全量 `.md` 路径索引，重写唯一可解析的引用；按文件名短路径解析仍无法唯一定位的歧义链接不改并在返回 `updated`/`ambiguous` 中报告（E11）。
+- **frontmatter（F07）**：gray-matter 解析/序列化；`manage_frontmatter` 支持 get/set/delete；set 在无 frontmatter 时自动创建；YAML 损坏抛错且文件不变（E12）。
+- **tags（F08）**：`manage_tags` = list（vault 全量，frontmatter `tags` + 行内 `#tag` 两来源）/ add / remove；行内标签只处理笔记正文中的 `#tag`（不含代码块内的，避免误伤——扫描时跳过 fenced code block）。
+- **搜索 v2（F10）**：游标分页（opaque base64 cursor，含 offset；非法/过期 cursor → INVALID_INPUT，E13）；`sort` = `path`（默认）/`modified`/`matches`；`tag` 过滤（复用 F08 的标签扫描）。
+- **v1.2 新增工具与变更**：
+  | 编号 | 工具/变更 | 描述 | 对应需求 |
+  |------|----------|------|---------|
+  | A08 | `manage_frontmatter` | frontmatter 字段 get/set/delete | F07 |
+  | A09 | `manage_tags` | 标签 list/add/remove | F08 |
+  | A10 | `create_folder` | 创建目录（父级自动创建） | F09 |
+  | A11 | `search_notes` v2 | + cursor/sort/tag | F10 |
+  | A12 | 写工具 + `if_match` | edit/create/move/delete 乐观锁；read 返回 etag | F11 |
+  | A13 | `move_note` v2 | + 反向链接更新 | F12 |
+- **分发（F13）**：package.json `name` → `@soleil1043/obsidian-mcp`（原名被占用，见 spec 假设），新增 `"files": ["dist", "README.md", "LICENSE"]` 只发编译产物；`.github/workflows/release.yml`：push tag `v*` 时 npm publish --access public + GitHub Release 自动生成。工具注册处 SERVER_NAME 不变。

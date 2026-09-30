@@ -86,6 +86,46 @@ spec E07 要求删除不可静默永久丢失，需选 trash 实现方式。
 **影响**：
 delete_note 工具（A07）；`list_notes`/`search_notes` 默认跳过 `.trash/` 与 `.obsidian/`。
 
+## D005: 并发控制采用 etag + if_match 乐观锁 — 2026-09-30
+
+**背景**：
+v1.2 竞品调研发现：多个 harness 并发写同一笔记会互相覆盖（丢更新）。需选并发控制机制。
+
+**选项**：
+| 选项 | 优点 | 缺点 |
+|------|------|------|
+| A: 内容 etag（SHA-256）+ `if_match` 乐观锁 | 无锁文件残留、跨平台、与 HTTP ETag 语义一致；StevenStavrakis/obsidian-mcp 同方案已验证可行 | 调用方需两步（先读后写），LLM 可能忘传 if_match（可选参数保持向后兼容） |
+| B: 文件锁（flock/lockfile） | 强互斥 | Windows/POSIX 行为不一致，崩溃后残留死锁文件，MCP 无会话边界可释放 |
+| C: 维持现状（后写覆盖） | 零成本 | 正确性硬伤 |
+
+**最终选择**：选项 A
+
+**理由**：
+个人 vault 场景并发冲突低频，乐观锁足够；兼容性最好且不引入跨平台锁问题。`if_match` 设为可选，旧调用方式不受影响。
+
+**影响**：
+read_note 返回 etag；edit/create/move/delete 新增 if_match 与 ETAG_MISMATCH 错误码（T014）。
+
+## D006: frontmatter 解析采用 gray-matter — 2026-09-30
+
+**背景**：
+F07/F08 需要解析与序列化 YAML frontmatter，需选实现方式。
+
+**选项**：
+| 选项 | 优点 | 缺点 |
+|------|------|------|
+| A: gray-matter | Obsidian 生态事实标准，正确处理嵌套/引号/多行/日期等 YAML 边界 | 新增一个依赖 |
+| B: 手写正则 + 简易解析 | 零依赖 | YAML 边界情况多，极易写坏用户 frontmatter（E12 风险） |
+| C: yaml 包 + 手工切分 frontmatter | 解析器成熟 | 切分/拼接逻辑仍需自写且要两端（解析+序列化）保持一致 |
+
+**最终选择**：选项 A
+
+**理由**：
+frontmatter 写坏是数据损坏级风险（E12），成熟库显著降低风险；gray-matter 同时提供解析与 stringify，两端一致。
+
+**影响**：
+manage_frontmatter / manage_tags 工具；package.json 依赖；E12 行为。
+
 ## D004: 搜索用同步遍历而非索引 — 2026-09-30
 
 **背景**：
