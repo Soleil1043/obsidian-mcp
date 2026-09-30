@@ -251,6 +251,25 @@
 
 **状态**：✅ Phase 5 验证通过，MVP 交付完成
 
+### [v1.1] T012 CI 流水线 + T013 GitHub 公开仓库发布 — 2026-09-30
+
+**操作**：
+- 需求变更 v1.1（spec 变更记录已追加）：新增 CI 与 GitHub 公开托管，交付管道补齐
+
+**涉及文件**：
+- `.github/workflows/ci.yml` — 矩阵 ubuntu-latest/windows-latest × Node 20/24，步骤 npm ci → build → test；windows 位守护 Windows 路径兼容
+- `LICENSE` — MIT（Copyright Soleil1043）
+- `package.json` — 补 repository/bugs/homepage 元数据
+- `README.md` — CI 徽章、git clone 指引
+
+**验证方式**：
+- push 后 CI run 36725186510 一次通过，4 个矩阵作业全绿（含 windows-latest × node 20/24，测试中全部 win32 条件用例在真实 Windows runner 上执行）
+- 仓库 https://github.com/Soleil1043/obsidian-mcp （PUBLIC，默认分支 main，17 个提交）
+
+**状态**：✅ 通过验证
+
+**Git**：`cc294bb` feat: T012 / T013 提交见仓库
+
 ---
 
 ## 问题追踪

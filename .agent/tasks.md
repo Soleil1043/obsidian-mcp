@@ -26,8 +26,8 @@
 <!-- 装配与交付 -->
 - [x] T010: MCP server 装配与 stdio 入口 | 依赖: T003, T004, T005, T006, T007, T008, T009 | 涉及文件: src/server.ts, src/index.ts, package.json（bin 字段） | 验收: 设置 OBSIDIAN_VAULT_PATH 后 `npm run build` 并用 MCP Inspector（`npx @modelcontextprotocol/inspector node dist/index.js`）连接成功、列出 7 个工具并可调用；未设置变量时启动即报错退出（E01） | 覆盖: E01 + F01-F06（装配）
 - [x] T011: README 使用文档 | 依赖: T010 | 涉及文件: README.md | 验收: 按文档可独立完成安装与配置——含 harness 配置 JSON 示例、环境变量说明、工具清单 | 覆盖: 无（交付文档）
-- [ ] T012: CI 流水线配置 | 依赖: T011 | 涉及文件: .github/workflows/ci.yml, README.md | 验收: push 后 GitHub Actions 自动跑 `npm ci && npm run build && npm test`，ubuntu/windows × node 20/24 矩阵全绿；README 加徽章 | 覆盖: 无（基础设施）
-- [ ] T013: GitHub 公开仓库发布 | 依赖: T012 | 涉及文件: LICENSE, package.json, README.md | 验收: 公开仓库 Soleil1043/obsidian-mcp 存在，含全部提交，CI 运行全绿 | 覆盖: 无（基础设施）
+- [x] T012: CI 流水线配置 | 依赖: T011 | 涉及文件: .github/workflows/ci.yml, README.md | 验收: push 后 GitHub Actions 自动跑 `npm ci && npm run build && npm test`，ubuntu/windows × node 20/24 矩阵全绿；README 加徽章 | 覆盖: 无（基础设施）
+- [x] T013: GitHub 公开仓库发布 | 依赖: T012 | 涉及文件: LICENSE, package.json, README.md | 验收: 公开仓库 Soleil1043/obsidian-mcp 存在，含全部提交，CI 运行全绿 | 覆盖: 无（基础设施）
 
 ---
 
@@ -42,6 +42,6 @@
 ## 进度统计
 
 - 总任务数：13
-- 已完成：11
+- 已完成：13
 - 进行中：0
-- 待开始：2（T012、T013，v1.1 变更新增）
+- 待开始：0
