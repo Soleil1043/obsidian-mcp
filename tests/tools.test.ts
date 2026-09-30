@@ -9,6 +9,7 @@ import { Vault } from "../src/vault";
 import { createNote } from "../src/tools/create";
 import { editNote } from "../src/tools/edit";
 import { listNotes } from "../src/tools/list";
+import { moveNote } from "../src/tools/organize";
 import { readNote } from "../src/tools/read";
 import { searchNotes } from "../src/tools/search";
 
@@ -412,5 +413,64 @@ describe("edit_note（F05）", () => {
       "NOT_FOUND",
     );
     expect(existsSync(path.join(vault.root, "ghost.md"))).toBe(false);
+  });
+});
+
+describe("move_note（F06）", () => {
+  it("同目录重命名：旧路径不存在，新路径内容一致", async () => {
+    const vault = makeFixtureVault();
+    const result = await moveNote(vault, { from: "note.md", to: "renamed.md" });
+    expect(result).toEqual({ from: "note.md", to: "renamed.md" });
+    expect(existsSync(path.join(vault.root, "note.md"))).toBe(false);
+    expect(readFileSync(path.join(vault.root, "renamed.md"), "utf8")).toBe("# hello\n");
+  });
+
+  it("跨目录移动：目标父目录自动创建", async () => {
+    const vault = makeFixtureVault();
+    await moveNote(vault, { from: "note.md", to: "archive/2026/note.md" });
+    expect(existsSync(path.join(vault.root, "note.md"))).toBe(false);
+    expect(readFileSync(path.join(vault.root, "archive", "2026", "note.md"), "utf8")).toBe(
+      "# hello\n",
+    );
+  });
+
+  it("E08: 目标已存在时报错，源文件保持原位", async () => {
+    const vault = makeFixtureVault();
+    await expectVaultError(
+      () => moveNote(vault, { from: "note.md", to: "README.MD" }),
+      "ALREADY_EXISTS",
+    );
+    expect(readFileSync(path.join(vault.root, "note.md"), "utf8")).toBe("# hello\n");
+    expect(readFileSync(path.join(vault.root, "README.MD"), "utf8")).toBe("readme\n");
+  });
+
+  it("源不存在、源是目录、源等于目标时报对应错误", async () => {
+    const vault = makeFixtureVault();
+    await expectVaultError(
+      () => moveNote(vault, { from: "ghost.md", to: "x.md" }),
+      "NOT_FOUND",
+    );
+    mkdirSync(path.join(vault.root, "folder.md"));
+    await expectVaultError(
+      () => moveNote(vault, { from: "folder.md", to: "x.md" }),
+      "NOT_A_FILE",
+    );
+    await expectVaultError(
+      () => moveNote(vault, { from: "note.md", to: "note.md" }),
+      "INVALID_INPUT",
+    );
+  });
+
+  it("E05/E06: 目标越界或非 .md 被拒绝，源文件不受影响", async () => {
+    const vault = makeFixtureVault();
+    await expectVaultError(
+      () => moveNote(vault, { from: "note.md", to: "../outside.md" }),
+      "PATH_ESCAPES_VAULT",
+    );
+    await expectVaultError(
+      () => moveNote(vault, { from: "note.md", to: "file.txt" }),
+      "NOT_MARKDOWN",
+    );
+    expect(readFileSync(path.join(vault.root, "note.md"), "utf8")).toBe("# hello\n");
   });
 });

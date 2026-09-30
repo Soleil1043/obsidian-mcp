@@ -148,6 +148,22 @@
 
 **Git**：见下方 T007 commit
 
+### [T008] move_note 工具 — 2026-09-30
+
+**操作**：
+- 新增 organize.ts 与 move_note 工具（F06）；不覆盖目标（E08），源文件在所有报错路径下保持原位
+
+**涉及文件**：
+- `src/tools/organize.ts` — moveNote 处理器：from/to 双路径 vault 校验 → from===to INVALID_INPUT → from 存在性/文件检查 → to 已存在 ALREADY_EXISTS（E08，不提供 overwrite）→ mkdir 目标父目录 → rename。T009 的 delete_note 将加入同文件
+- `tests/tools.test.ts` — 新增 5 个用例：重命名、跨目录移动（父目录自动创建）、E08 报错后断言源与目标均未变、源类错误三连、E05/E06 拒绝且源不受影响
+
+**验证方式**：
+- `npm run build` 成功；`npm test` 56 passed（smoke 1 + vault 15 + tools 40）
+
+**状态**：✅ 通过验证（待用户确认）
+
+**Git**：见下方 T008 commit
+
 ---
 
 ## 问题追踪
