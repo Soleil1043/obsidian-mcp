@@ -112,3 +112,8 @@ obsidian-mcp/
 - **工具粒度**：7 个细粒度工具而非 1 个大工具加 action 参数——schema 简单、描述明确，LLM 调用更可靠；仅 `edit_note` 合并 overwrite/append/replace 三种模式，因其参数高度重叠且作用于同一资源。
 - **删除策略**：默认移入 vault 根 `.trash/` 而非系统回收站——`.trash/` 是 Obsidian 原生约定，且系统回收站 API 跨平台不一致；永久删除需显式 `permanent=true`。
 - **搜索实现**：同步遍历 + 逐行匹配，不引入索引/外部引擎——个人 vault 规模（数千文件内）性能足够；默认排除 `.obsidian/`、`.trash/`。
+
+## 7. 交付管道（v1.1 增补）
+
+- **CI**：GitHub Actions（`.github/workflows/ci.yml`），矩阵 `ubuntu-latest`/`windows-latest` × Node 20/24——windows 矩阵位用于守护本项目声明的 Windows 路径兼容；步骤 `npm ci → npm run build → npm test`。
+- **托管**：公开仓库 `Soleil1043/obsidian-mcp`（gh CLI 创建并推送）；补 MIT LICENSE 文件与 package.json repository 元数据；README 加 CI 徽章与克隆指引。npm 发布暂不做。
