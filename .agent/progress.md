@@ -431,6 +431,26 @@
 
 **Git**：见下方 v1.4 commit
 
+### [v1.5] README/package.json 与 v1.3 决策对齐 — 2026-10-12
+
+**操作**：
+- 修复 v1.3 取消 npm 发布后遗留的文档与配置漂移（用户发现 README 第53 行仍写「npx obsidian-mcp，发布 npm 后」）
+- 顺带修复 T019 完成后未同步的 3 处同类漂移（search_notes 参数、状态段落、目录结构树）
+
+**涉及文件**：
+- `README.md` — ① 接入配置表 `command` 去掉「或 npx obsidian-mcp，发布 npm 后」，只留 `node`；② `search_notes` 关键参数补 `sort?`、`tag?`、`cursor?`（v2 分页排序标签过滤，T019）；③ 「状态」段从"spec v1.0，11/11 任务"更新为"spec v1.4，T001-T019 全部完成，10 个工具、104 个测试"，并明示不分发 npm；④ 开发段目录结构树补 `etag.ts`、`links.ts`，`tools/` 标注 10 个工具
+- `package.json` — 删除 `scripts.prepublishOnly`（仅 `npm publish` 时触发，v1.3 取消发布后为死配置）
+- `package.json` 保留项说明：`bin` 未删——`npm link` 本地全局安装依赖它，删除会破坏本地开发体验，且零运行开销；此为判断而非遗漏
+
+**验证方式**：
+- `npm run build` 成功（tsc 无报错）
+- `npm test` 104 passed（5 个测试文件），确认删 `prepublishOnly` 不影响任何链路
+- 全文检索确认 `prepublishOnly` 与「发布 npm 后」字样已无残留
+
+**状态**：✅ 通过验证
+
+**Git**：见下方 v1.5 commit
+
 ---
 
 ## 问题追踪

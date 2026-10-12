@@ -14,7 +14,7 @@
 |------|------|---------|
 | `list_notes` | 列出目录下的笔记与文件夹（跳过 `.obsidian/`、`.trash/` 等隐藏条目与附件） | `folder?` |
 | `read_note` | 读取笔记全文（UTF-8 原文，含 frontmatter）+ 大小/修改时间/内容 etag | `path` |
-| `search_notes` | 关键词全文搜索（纯文本子串，非正则），返回文件/行号/行内容/文件命中总数 | `query`、`folder?`、`case_sensitive?`、`max_results?` |
+| `search_notes` | 关键词全文搜索（纯文本子串，非正则），返回文件/行号/行内容/文件命中总数；支持游标分页、结果排序（路径/修改时间/匹配数降序）、按标签过滤 | `query`、`folder?`、`case_sensitive?`、`sort?`、`tag?`、`cursor?`、`max_results?` |
 | `create_note` | 创建笔记，父目录自动创建 | `path`、`content?`、`overwrite?`、`if_match?` |
 | `edit_note` | 整体覆盖 / 末尾追加 / 精准替换（`overwrite` / `append` / `replace` 三模式） | `path`、`mode`、`content`、`old_string?`、`replace_all?`、`if_match?` |
 | `move_note` | 重命名 / 移动笔记，自动更新指向它的 `[[wikilink]]` 与 Markdown 相对链接 | `from`、`to`、`if_match?` |
@@ -50,7 +50,7 @@ Node.js ≥ 20。
 
 | 配置项 | 值 |
 |--------|-----|
-| command | `node`（或 `npx obsidian-mcp`，发布 npm 后） |
+| command | `node` |
 | args | 项目内 `dist/index.js` 的绝对路径 |
 | env | `OBSIDIAN_VAULT_PATH` = 你的 vault 绝对路径 |
 
@@ -102,11 +102,13 @@ src/
 ├── server.ts       # MCP server 与工具注册
 ├── vault.ts        # Vault 核心：路径安全与归一化
 ├── errors.ts       # 统一错误类型
-└── tools/          # 每个工具一个文件
+├── etag.ts         # etag 计算与 if_match 乐观锁校验
+├── links.ts        # wikilink / 相对链接解析与重写
+└── tools/          # 每个工具一个文件（共 10 个工具）
 tests/              # vitest（单元 + InMemory 协议集成测试）
 .agent/             # SDD 项目状态（spec / plan / tasks / progress / decisions）
 ```
 
 ## 状态
 
-MVP 已按 SDD 范式完成（spec v1.0，11/11 任务）。需求文档见 `.agent/spec.md`，技术方案见 `.agent/plan.md`，构建日志见 `.agent/progress.md`。
+MVP 已按 SDD 范式完成（spec v1.4，T001-T019 全部完成，10 个 MCP 工具、104 个测试）。分发方式为 GitHub 克隆构建，不发布 npm。需求文档见 `.agent/spec.md`，技术方案见 `.agent/plan.md`，构建日志见 `.agent/progress.md`。
