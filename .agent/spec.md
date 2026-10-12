@@ -1,9 +1,9 @@
-# 需求文档 (Spec)
+# 需求规格说明书 (Spec)
 
-> Phase 1 产出。Agent 基于 PRD/用户描述填充本文件，用户确认后进入 Phase 2。
+> Phase 1（需求分析）产出。对话式迭代；必须由用户主动宣布"需求分析阶段结束，进入方案设计"后才进入 Phase 2，Agent 不得替用户判断阶段结束。
 > 状态标记：✅ 已确认 | 🔄 待确认 | ❌ 需修改
 
-**状态**：✅ 已确认（v1.2）
+**状态**：✅ 已确认（v1.4）
 
 ---
 
@@ -11,12 +11,26 @@
 
 AI harness（ZCode、Claude Code 等）缺少与 Obsidian vault 之间的通道：无法直接浏览、搜索、编辑 vault 中已有笔记，也无法把生成的内容作为笔记写入 vault。本项目实现一个 MCP server，把 vault 暴露为一组标准 MCP 工具，让任意支持 MCP 的 harness 都能读写 Obsidian 文档。
 
-## 2. 目标用户
+## 2. 竞品参考
+
+> 需求分析前的调研结论（GitHub 开源项目 / 互联网产品）。检索日期：2026-10-12；来源：各竞品 GitHub 仓库 README 及 npm 页面。本表补录 v1.2「竞品对标驱动」范围扩展（F07-F12）的对标依据。
+
+| 竞品 | 类型/定位 | 核心功能 | 对本项目的启示（借鉴 / 规避 / 差异化） |
+|------|----------|---------|--------------------------------------|
+| [StevenStavrakis/obsidian-mcp](https://github.com/StevenStavrakis/obsidian-mcp) | 开源（TS，700+ star），本地多 vault MCP server | 读/建/改/移/删笔记、标签增删改、目录创建、搜索；v2 引入 SHA-256 etag + revision 前置校验、原子事务与日志、显式 vault 白名单 | 最直接的对标对象：etag + if_match 乐观锁方案被其验证可行（D005 借鉴）；差异化在删除默认进 `.trash/`（Obsidian 原生可恢复）与 move 反向链接维护 |
+| [ConnorBritain/obsidian-mcp-server](https://github.com/ConnorBritain/obsidian-mcp-server) | 开源（TS，npm 分发），vault 操作 + 图分析 | 读写搜删、周期笔记、JsonLogic 高级搜索、图工具（孤儿/中心性/聚类/路径）、Smart Connections 语义搜索 | 图分析与语义搜索超出 MVP；其依赖 Local REST API 插件（Obsidian 需常驻）的路线，印证本项目"纯文件系统、无需 Obsidian 运行"的取舍（D001） |
+| [davidatoms/obsidian-mcp-server](https://github.com/davidatoms/obsidian-mcp-server) | 开源（TS，npm 分发），全功能笔记管理 | 笔记 CRUD + frontmatter、全文/标签/字段搜索、链接分析（backlinks/orphans）、多 vault 配置、初始化向导 | 链接分析（backlinks）可作后续路线图参考；多 vault 与初始化向导非 MVP 需求 |
+| [benwilkes9/obsidian-mcp](https://github.com/benwilkes9/obsidian-mcp) | 开源（TS），面向 context engineering | vault 上下文读取；严格工程流程（CI 安全扫描/SonarCloud/ESLint/Prettier 全链路） | 借鉴其工程严谨度；本项目以 vitest 104 用例 + Windows 矩阵 CI 保证质量 |
+| [24thAbhinav/obsidian-mcp](https://github.com/24thAbhinav/obsidian-mcp) | 开源（TS），搜索增强型 | FTS5 全文 + 语义检索（all-MiniLM-L6-v2）、间隔重复问答、SQLite 索引、HTTP/SSE transport | 语义检索/间隔重复与本地文件管理定位无关，不作参考；反证同步遍历搜索对个人 vault 足够（D004） |
+
+## 3. 目标用户
+
+谁会使用这个项目？
 
 - 个人知识管理者：在 Obsidian 中维护笔记，同时用 AI harness 日常办公，希望 AI 能直接检索和整理自己的 vault。
 - AI harness 用户：希望把 AI 生成的内容（总结、日记、笔记）沉淀到 Obsidian，而不是散落在对话里。
 
-## 3. MVP 功能列表
+## 4. MVP 功能列表
 
 > 每条功能必须有可验证的验收标准。不在此列表中的功能不做。
 
@@ -34,9 +48,9 @@ AI harness（ZCode、Claude Code 等）缺少与 Obsidian vault 之间的通道�
 | F10 | 搜索增强 | search_notes 支持游标分页、结果排序（路径/修改时间/匹配数）、按标签过滤 | 游标可翻完全部结果；排序参数生效；标签过滤只返回含该标签的笔记 |
 | F11 | 并发控制 | 读取返回 etag（内容 SHA-256）；写操作支持 `if_match` 乐观锁 | 提供 `if_match` 且与当前内容不符时报错且文件不变；未提供时行为与现状一致 |
 | F12 | 链接维护 | move_note 自动更新指向该笔记的 `[[wikilink]]` 与 Markdown 相对链接 | 移动后 vault 内引用指向新路径且可达；无法唯一解析的歧义链接保持原样并在返回中报告 |
-| F13 | npm 分发 | 以 scoped 包名发布 npm，GitHub Release 自动化 | 任何人可 `npx @soleil1043/obsidian-mcp` 运行；tag push 自动生成 Release |
+| F13 | npm 分发 | 以 scoped 包名发布 npm，GitHub Release 自动化 | 任何人可 `npx @soleil1043/obsidian-mcp` 运行；tag push 自动生成 Release【v1.3 已取消，见第 9 节变更记录】 |
 
-## 4. 非目标（明确不做什么）
+## 5. 非目标（明确不做什么）
 
 - Canvas/画布与二进制附件（`.canvas`、图片、PDF 等）：用户明确排除，MVP 只处理 Markdown 文本。
 - 第三方插件集成（Dataview、日记、日历等插件的语法与数据）：用户明确排除。
@@ -47,7 +61,7 @@ AI harness（ZCode、Claude Code 等）缺少与 Obsidian vault 之间的通道�
 - npm 发布：不做（用户决定，v1.3；分发走 GitHub 克隆构建）。
 - Canvas/画布与二进制附件、第三方插件集成、同步/发布到网络等既有非目标维持不变。
 
-## 5. 边界与异常
+## 6. 边界与异常
 
 > 每个 MVP 功能的异常路径与期望行为，E 编号供任务和测试引用。Phase 5 按本节逐条检查。
 
@@ -67,7 +81,7 @@ AI harness（ZCode、Claude Code 等）缺少与 Obsidian vault 之间的通道�
 | E12 | F07 | frontmatter YAML 损坏/非法 | 返回错误，frontmatter 与正文均不变 |
 | E13 | F10 | 非法或过期分页游标 | 返回 INVALID_INPUT，提示从首页重新开始 |
 
-## 6. 技术约束
+## 7. 技术约束
 
 - TypeScript 5.x（strict）+ Node.js ≥ 20，npm 包管理。
 - MCP stdio transport，可被任意 MCP 客户端以 `node`/`npx` 命令拉起。
@@ -76,16 +90,16 @@ AI harness（ZCode、Claude Code 等）缺少与 Obsidian vault 之间的通道�
 - 所有文件操作限制在 vault 根目录内（安全不变量，见 E05）。
 - 读写统一 UTF-8。
 
-## 7. 假设与依赖
+## 8. 假设与依赖
 
 - 假设：用户已有本地 Obsidian vault，并能提供其绝对路径用于配置。
 - 假设：「同步/发布」与「tags 专门管理」默认排除（访谈未逐一确认，记录于此，可随时修订）。注：v1.2 已将 tags/frontmatter 纳入范围，此条对 tags 失效。
-- 假设：npm 采用 scoped 名 `@soleil1043/obsidian-mcp`（原名 `obsidian-mcp` 已被第三方 StevenStavrakis/obsidian-mcp 占用）。
-- 假设：「生态验证」（star/用户锤打）非代码任务，靠发布与长期使用积累；对应动作仅 T020（发布管道）与 T021（英文文档）。
+- 假设：npm 采用 scoped 名 `@soleil1043/obsidian-mcp`（原名 `obsidian-mcp` 已被第三方 StevenStavrakis/obsidian-mcp 占用）。注：v1.3 已取消 npm 发布，此条随 F13 一并失效，保留备查。
+- 假设：「生态验证」（star/用户锤打）非代码任务，靠发布与长期使用积累；对应动作仅 T020（发布管道）与 T021（英文文档）。注：v1.3 已取消。
 - 依赖：MCP 客户端（ZCode / Claude Code 等）支持 stdio MCP server 配置。
-- 依赖：`@modelcontextprotocol/sdk` 官方 TypeScript SDK；`gray-matter`（frontmatter 解析，见 D006）。
+- 依赖：`@modelcontextprotocol/sdk` 官方 TypeScript SDK；`js-yaml`（frontmatter 解析，见 D007）。
 
-## 8. 变更记录
+## 9. 变更记录
 
 > 确认后的任何需求变更在此追加记录，只追加不删除。变更流程见 `prompts.md` 的「需求变更 Prompt」。
 
@@ -95,3 +109,4 @@ AI harness（ZCode、Claude Code 等）缺少与 Obsidian vault 之间的通道�
 | v1.1 | 2026-09-30 | 范围扩展：新增 GitHub Actions CI 与 GitHub 公开仓库托管（交付管道，不涉及产品功能）；注：非目标中的「同步/发布到网络」指 Obsidian 内容发布，与代码托管无关 | T012/T013、README、package.json | ✅ |
 | v1.2 | 2026-09-30 | 范围扩展（竞品对标驱动）：并发控制 F11、链接维护 F12、frontmatter/tags/目录/搜索增强 F07-F10、npm 分发 F13；新增 E10-E13；非目标新增「Docker 暂不做」 | T014-T021、plan 第 8 节、D005/D006 | ✅ |
 | v1.3 | 2026-10-01 | 范围收缩：取消 F13（npm 发布与 Release 自动化，用户决定不做 npm 分发；GitHub Release 如需可走变更流程恢复）；T020/T021 随之取消；非目标新增「不做 npm 发布」 | T020/T021 | ✅ |
+| v1.4 | 2026-10-12 | 文档架构对齐 sdd-scaffold 新版模板：spec 重构为 9 节结构，新增「竞品参考」节（2026-10-12 实际检索，补录 v1.2 对标依据）；产品功能范围不变（F01-F13/E01-E13 原样保留） | 仅文档结构，无代码与任务影响 | ✅ |

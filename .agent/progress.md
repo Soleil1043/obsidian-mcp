@@ -409,6 +409,28 @@
 
 **状态**：✅ v1.2/v1.3 交付完成，项目当前共 10 个 MCP 工具、104 个测试
 
+### [v1.4] 文档架构对齐 sdd-scaffold 模板 — 2026-10-12
+
+**操作**：
+- 按 sdd-scaffold 技能新版模板改写项目文档架构（决策 D008），纯文档改动，不触碰代码与已确认需求/设计内容
+
+**涉及文件**：
+- `AGENTS.md` — 新增「标准开发流程」说明；工作流约束新增第 8 条「设计变动先算账」；文件结构描述与模板对齐；技术栈与代码约定保持本项目实际形态
+- `.agent/spec.md` — 重构为 9 节结构，新增「竞品参考」节（2026-10-12 实际检索 5 个同类竞品：StevenStavrakis/ConnorBritain/davidatoms/benwilkes9/24thAbhinav，补录 v1.2 对标依据）；既有 F01-F13/E01-E13 与非目标原样保留；变更记录追加 v1.4
+- `.agent/plan.md` — 重构为 6 节结构：技术选型补「代价/权衡」列（新增 CI/托管行）、目录结构更新至当前实际形态（10 工具 + links.ts/etag.ts）、数据模型补 etag/SearchResult/错误码枚举、工具表更新至 A01-A13 并补「工具实现要点」、依赖版本对齐 package.json；原第 7 节交付管道并入技术选型，原第 8 节路线图内容并入工具设计
+- `.agent/tasks.md` — 新增「任务格式说明」节；任务列表与覆盖检查原样保留
+- `.agent/prompts.md` — 替换为新版 Prompt 全集（竞品调研、对话式阶段门禁、设计变更、回退、上下文恢复）
+- `.agent/decisions.md` — 追加 D008
+- `.agent/progress.md` — 本条记录
+
+**验证方式**：
+- 逐文件比对 `sdd-scaffold/assets/template/` 模板：章节结构、状态标记、格式说明一致
+- `git status` 确认仅 AGENTS.md 与 .agent/ 下文档变更，src/tests 零改动
+
+**状态**：✅ 通过验证（待用户确认）
+
+**Git**：见下方 v1.4 commit
+
 ---
 
 ## 问题追踪
